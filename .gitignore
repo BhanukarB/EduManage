@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.next/
+.playwright-mcp/
+.env
+.env.*
+!.env.example

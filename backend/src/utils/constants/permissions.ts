@@ -1,0 +1,66 @@
+export enum PermissionEnum {
+
+  // User
+  GET_USER_BY_ID = 'get_user_by_id',
+  GET_LOGGED_IN_USER = 'get_logged_in_user',
+  UPDATE_USER = 'update_user',
+  DELETE_USER = 'delete_user',
+  CREATE_API_KEY = 'create_api_key',
+
+  // Role
+  CREATE_ROLE = 'create_role',
+  GET_ALL_ROLES = 'get_all_roles',
+  UPDATE_ROLE = 'update_role',
+
+  // Role permissions
+  ASSIGN_ROLE_TO_USER = 'assign_role_to_user',
+  ASSIGN_PERMISSION_TO_ROLE = 'assign_permission_to_role',
+  GET_ROLE_PERMISSIONS = 'get_role_permissions',
+  GET_ALL_PERMISSIONS = 'get_all_permissions',
+  GET_USER_ROLES = 'get_user_roles',
+  GET_ORG_ROLES = 'get_org_roles',
+  GET_USERS_BY_ORG_AND_ROLE = 'get_users_by_org_and_role',
+
+  // Organisation
+  CREATE_ORGANISATION = 'create_organisation',
+  GET_ORGANISATION_BY_ID = 'get_organisation_by_id',
+  UPDATE_ORGANISATION = 'update_organisation',
+  CREATE_BRANCH = 'create_branch',
+  GET_BRANCH_BY_ID = 'get_branch_by_id',
+  UPDATE_BRANCH = 'update_branch',
+  GET_BRANCH_LIST_BY_ORG_ID = 'get_branch_list_by_org_id',
+  CREATE_CLASS = 'create_class',
+  UPDATE_CLASS = 'update_class',
+  GET_CLASS_LIST_BY_ORG_ID = 'get_class_list_by_org_id',
+  CREATE_CLASS_SECTION = 'create_class_section',
+  UPDATE_CLASS_SECTION = 'update_class_section',
+  GET_CLASS_SECTION_LIST = 'get_class_section_list',
+  CREATE_CLASS_BATCH = 'create_class_batch',
+  UPDATE_CLASS_BATCH = 'update_class_batch',
+  GET_CLASS_BATCH_LIST = 'get_class_batch_list',
+  CREATE_ORG_ACADEMIC_SESSION = 'create_org_academic_session',
+  UPDATE_ORG_ACADEMIC_SESSION = 'update_org_academic_session',
+  GET_ORG_ACADEMIC_SESSION_LIST = 'get_org_academic_session_list',
+  GET_ORG_ACADEMIC_SESSION_BY_ID = 'get_org_academic_session_by_id',
+  CREATE_SUBJECT = 'create_subject',
+  UPDATE_SUBJECT = 'update_subject',
+  GET_SUBJECT_LIST_BY_ORG_ID = 'get_subject_list_by_org_id',
+  GET_SUBJECT_BY_ID = 'get_subject_by_id',
+  CREATE_CLASS_SUBJECT_MAPPING = 'create_class_subject_mapping',
+  UPDATE_CLASS_SUBJECT_MAPPING = 'update_class_subject_mapping',
+  CREATE_SECTION_SUBJECT_MAPPING = 'create_section_subject_mapping',
+  UPDATE_SECTION_SUBJECT_MAPPING = 'update_section_subject_mapping',
+  CREATE_BATCH_SUBJECT_MAPPING = 'create_batch_subject_mapping',
+  UPDATE_BATCH_SUBJECT_MAPPING = 'update_batch_subject_mapping',
+  ADD_STUDENT_TO_ORG = 'add_student_to_org',
+
+  // Notification
+  GET_ALL_NOTIFICATION_FORMATS = 'get_all_notification_formats',
+  CREATE_NOTIFICATION_FORMAT = 'create_notification_format',
+  GET_NOTIFICATION_FORMAT_BY_ID = 'get_notification_format_by_id',
+  UPDATE_NOTIFICATION_FORMAT = 'update_notification_format',
+  DELETE_NOTIFICATION_FORMAT = 'delete_notification_format',
+  GET_USER_NOTIFICATION_PREFERENCES = 'get_user_notification_preferences',
+  CREATE_USER_NOTIFICATION_PREFERENCE = 'create_user_notification_preference',
+  UPDATE_USER_NOTIFICATION_PREFERENCE = 'update_user_notification_preference',
+}
