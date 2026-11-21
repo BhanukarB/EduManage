@@ -1,11 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateRoleDto {
   @ApiProperty({ description: 'Shared role name', example: 'teacher' })
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @ApiProperty({ required: false, description: 'Role scope type (1 = global, 2 = organisation, 3 = branch)' })
+  @IsOptional() @IsInt()
+  roleType?: number;
 }
 
 export class GetRoleDto {
@@ -19,6 +23,9 @@ export class GetRoleDto {
 
   @ApiProperty({ description: 'Number of permissions assigned to the role', required: false })
   permission_count?: number;
+
+  @ApiProperty({ required: false })
+  roleType?: number | null;
 }
 
 export class AssignRolesDto {

@@ -14,9 +14,11 @@ import {
   CreateOrgAcademicSessionAPI,
   CreateOrganisationAPI,
   AddStudentToOrgAPI,
+  AddOrganisationStaffAPI,
   CreateSubjectAPI,
   GetBranchByIdAPI,
   GetBranchListByOrgIdAPI,
+  GetOrganisationStaffAPI,
   GetClassListByOrgIdAPI,
   GetClassBatchListAPI,
   GetClassSectionListAPI,
@@ -27,6 +29,7 @@ import {
   GetSubjectByIdAPI,
   GetSubjectListByOrgIdAPI,
   UpdateBranchAPI,
+  UpdateOrganisationStaffAPI,
   UpdateClassAPI,
   UpdateClassBatchAPI,
   UpdateClassSectionAPI,
@@ -39,6 +42,7 @@ import {
 } from '../../utils/routes/organisation.routes';
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { BranchDto, CreateBranchRequestDto, UpdateBranchDto } from './dtos/branch.dto';
+import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
 import { ClassDto, CreateClassRequestDto, UpdateClassDto } from './dtos/class.dto';
 import { ClassSectionDto, CreateClassSectionRequestDto, UpdateClassSectionDto } from './dtos/class-section.dto';
 import { ClassBatchDto, CreateClassBatchRequestDto, UpdateClassBatchDto } from './dtos/class-batch.dto';
@@ -177,6 +181,39 @@ export class OrganisationsController {
   getBranchSummary(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('branchId', ParseUUIDPipe) branchId: string) {
     this.assertOrganisationAccess(req, orgId);
     return this.organisationsService.getBranchSummary(orgId, branchId);
+  }
+
+  @Get(GetOrganisationStaffAPI.path)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions(...GetOrganisationStaffAPI.permissions)
+  @ApiOperation({ summary: 'List staff for an organisation' })
+  @ApiResponse({ status: 200, type: [OrganisationStaffDto] })
+  getOrganisationStaff(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string): Promise<OrganisationStaffDto[]> {
+    this.assertOrganisationAccess(req, orgId);
+    return this.organisationsService.getOrganisationStaff(orgId);
+  }
+
+  @Put(UpdateOrganisationStaffAPI.path)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions(...UpdateOrganisationStaffAPI.permissions)
+  @ApiOperation({ summary: 'Update a staff member in an organisation' })
+  @ApiResponse({ status: 200, type: OrganisationStaffDto })
+  updateOrganisationStaff(
+    @Req() req: any,
+    @Body() data: UpdateOrganisationStaffDto,
+  ): Promise<OrganisationStaffDto> {
+    this.assertOrganisationAccess(req, data.orgId);
+    return this.organisationsService.updateOrganisationStaff(data.orgId, data.staffId, data);
+  }
+
+  @Post(AddOrganisationStaffAPI.path)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions(...AddOrganisationStaffAPI.permissions)
+  @ApiOperation({ summary: 'Add a staff member to an organisation branch' })
+  @ApiResponse({ status: 201, type: OrganisationStaffDto })
+  addOrganisationStaff(@Req() req: any, @Body() data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
+    this.assertOrganisationAccess(req, data.orgId);
+    return this.organisationsService.addOrganisationStaff(data);
   }
 
   // classes

@@ -9,6 +9,7 @@ import {
   CreateRoleAPI,
   GetAllPermissionsAPI,
   GetAllRolesAPI,
+  GetBranchRolesAPI,
   GetRolePermissionsAPI,
   GetUserRolesAPI,
   UpdateRoleAPI,
@@ -46,6 +47,14 @@ export class RbacController {
   @ApiOperation({ summary: 'List shared roles' })
   getAllRoles(): Promise<GetRoleDto[]> {
     return this.rbacService.getAllRoles();
+  }
+
+  @Get(GetBranchRolesAPI.path)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions(...GetBranchRolesAPI.permissions)
+  @ApiOperation({ summary: 'List branch-level roles' })
+  getBranchRoles(): Promise<GetRoleDto[]> {
+    return this.rbacService.getBranchRoles();
   }
 
   @Get('permissions')

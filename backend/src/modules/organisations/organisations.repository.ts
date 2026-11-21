@@ -24,6 +24,8 @@ import {
     BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
 import { AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
+import { RoleType } from '../../utils/enums/roleType';
 
 const organisationColumns = [
     'id', 'name', 'tagline', 'type', 'email_id as emailId', 'phone_number as phoneNumber',
@@ -618,11 +620,97 @@ export class OrganisationsRepository {
         return knexConnection('branches').where({ org_id: orgId }).select(branchColumns).orderBy('created_at', 'desc');
     }
 
+    async findOrganisationStaff(orgId: string): Promise<OrganisationStaffDto[]> {
+        return knexConnection('organisation_staff_table as s')
+            .join('users_table as u', 's.user_id', 'u.id')
+            .where('s.org_id', orgId)
+            .whereNot('s.status', 2)
+            .select(
+                's.id', 's.user_id as userId', 'u.first_name as firstName', 'u.last_name as lastName',
+                'u.email_id as emailId', 'u.phone_number as phoneNumber', 's.branch_id as branchId',
+                's.designation', 's.status',
+            ).orderBy('u.first_name');
+    }
+
+    async addOrganisationStaff(data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
+        if (!data.firstName?.trim() || !data.lastName?.trim() || !data.designation?.trim() || !data.emailId?.trim() || !data.joiningDate) {
+            throw new BadRequestException('First name, last name, email, designation, and joining date are required');
+        }
+        const trx = await knexConnection.transaction();
+        try {
+            const branch = await trx('branches').where({ id: data.branchId, org_id: data.orgId }).first('id');
+            if (!branch) throw new NotFoundException('Branch not found for this organisation');
+            const role = await trx('roles_table').where({ id: data.roleId, role_type: RoleType.BRANCH_LEVEL }).first('id');
+            if (!role) throw new BadRequestException('Select a valid branch-level role');
+            let user = await trx('users_table').whereRaw('lower(email_id) = lower(?)', [data.emailId]).first('id', 'org_id as orgId');
+            if (user && user.orgId !== data.orgId) throw new ConflictException('A user with this email already exists outside this organisation');
+            if (!user) {
+                const [createdUser] = await trx('users_table').insert({
+                    id: randomUUID(), first_name: data.firstName, last_name: data.lastName,
+                    email_id: data.emailId.toLowerCase(), password_hash: await bcrypt.hash('Password@123', 10),
+                    phone_number: data.phoneNumber ?? null, org_id: data.orgId,
+                }).returning(['id', 'org_id as orgId']);
+                user = createdUser;
+            }
+            const existingStaff = await trx('organisation_staff_table').where({ org_id: data.orgId, user_id: user.id }).first('id');
+            if (existingStaff) throw new ConflictException('This user is already a staff member of the organisation');
+            await trx('user_roles_table').insert({
+                id: randomUUID(), user_id: user.id, role_id: data.roleId, org_id: data.orgId,
+            }).onConflict(['user_id', 'role_id', 'org_id']).ignore();
+            const staffId = randomUUID();
+            await trx('organisation_staff_table').insert({
+                id: staffId, org_id: data.orgId, branch_id: data.branchId, user_id: user.id,
+                designation: data.designation, joining_date: data.joiningDate, status: 1,
+            });
+            const staff = await trx('organisation_staff_table as s').join('users_table as u', 's.user_id', 'u.id')
+                .where({ 's.org_id': data.orgId, 's.id': staffId })
+                .first('s.id', 's.user_id as userId', 'u.first_name as firstName', 'u.last_name as lastName',
+                    'u.email_id as emailId', 'u.phone_number as phoneNumber', 's.branch_id as branchId', 's.designation', 's.status');
+            await trx.commit();
+            return staff;
+        } catch (error) {
+            await trx.rollback();
+            throw error;
+        }
+    }
+
+    async updateOrganisationStaff(orgId: string, staffId: string, data: UpdateOrganisationStaffDto): Promise<OrganisationStaffDto> {
+        if (data.status !== undefined && (![0, 1, 2].includes(data.status) || !Number.isInteger(data.status))) {
+            throw new BadRequestException('Staff status must be INACTIVE (0), ACTIVE (1), or DELETED (2)');
+        }
+        if (data.designation !== undefined && typeof data.designation !== 'string') {
+            throw new BadRequestException('Designation must be a string');
+        }
+        const existing = await knexConnection('organisation_staff_table').where({ id: staffId, org_id: orgId }).first('id');
+        if (!existing) throw new NotFoundException('Staff member not found for this organisation');
+        if (data.branchId) {
+            const branch = await knexConnection('branches').where({ id: data.branchId, org_id: orgId }).first('id');
+            if (!branch) throw new NotFoundException('Branch not found for this organisation');
+        }
+        const changes: Record<string, unknown> = {};
+        if (data.status !== undefined) changes.status = data.status;
+        if (data.designation !== undefined) changes.designation = data.designation;
+        if (data.branchId !== undefined) changes.branch_id = data.branchId;
+        if (Object.keys(changes).length) {
+            changes.updated_at = knexConnection.fn.now();
+            await knexConnection('organisation_staff_table').where({ id: staffId, org_id: orgId }).update(changes);
+        }
+        const staff = await knexConnection('organisation_staff_table as s')
+            .join('users_table as u', 's.user_id', 'u.id')
+            .where({ 's.org_id': orgId, 's.id': staffId })
+            .first(
+                's.id', 's.user_id as userId', 'u.first_name as firstName', 'u.last_name as lastName',
+                'u.email_id as emailId', 'u.phone_number as phoneNumber', 's.branch_id as branchId',
+                's.designation', 's.status',
+            );
+        return staff;
+    }
+
     async getBranchSummary(orgId: string, branchId: string) {
         const branch = await knexConnection('branches').where({ id: branchId, org_id: orgId }).select(branchColumns).first();
         if (!branch) throw new NotFoundException('Branch not found');
         const [staffCount, studentCount, sectionClasses, batchClasses] = await Promise.all([
-            knexConnection('organisation_staff_table').where({ org_id: orgId, branch_id: branchId }).count('* as count').first(),
+            knexConnection('organisation_staff_table').where({ org_id: orgId, branch_id: branchId }).whereNot('status', 2).count('* as count').first(),
             knexConnection('organisation_student_table').where({ org_id: orgId, branch_id: branchId, status: 1 }).count('* as count').first(),
             knexConnection('classes as c').join('sections_table as s', 's.class_id', 'c.id')
                 .where({ 'c.org_id': orgId, 's.branch_id': branchId }).distinct('c.id', 'c.class_name as className', 'c.class_code as classCode')

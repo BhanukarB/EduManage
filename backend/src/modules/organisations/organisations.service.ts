@@ -16,6 +16,7 @@ import {
 import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
 import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
 import { AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
 
 @Injectable()
 export class OrganisationsService {
@@ -63,6 +64,18 @@ export class OrganisationsService {
 
   async getBranchSummary(orgId: string, branchId: string) {
     return this.organisationsRepository.getBranchSummary(orgId, branchId);
+  }
+
+  async getOrganisationStaff(orgId: string): Promise<OrganisationStaffDto[]> {
+    return this.organisationsRepository.findOrganisationStaff(orgId);
+  }
+
+  async addOrganisationStaff(data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
+    return this.organisationsRepository.addOrganisationStaff(data);
+  }
+
+  async updateOrganisationStaff(orgId: string, staffId: string, data: UpdateOrganisationStaffDto): Promise<OrganisationStaffDto> {
+    return this.organisationsRepository.updateOrganisationStaff(orgId, staffId, data);
   }
 
   async createClass(data: CreateClassDto): Promise<ClassDto> {

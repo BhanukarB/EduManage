@@ -43,6 +43,10 @@ export class RbacService {
     return this.rbacRepository.getAllRoles();
   }
 
+  async getBranchRoles(): Promise<GetRoleDto[]> {
+    return this.rbacRepository.getBranchRoles();
+  }
+
   async getUserPermissions(userId: string, orgId?: string): Promise<string[]> {
     const rows = await this.rbacRepository.getPermissionsByUserId(userId, orgId);
     return rows.map((row) => row.permission);

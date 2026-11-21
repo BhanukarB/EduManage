@@ -106,6 +106,45 @@ export const GetBranchListByOrgIdAPI = {
   sample: '/<orgId>/branches',
 };
 
+export const GetOrganisationStaffAPI = {
+  path: '/:orgId/staff',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}:orgId/staff`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/staff`,
+  ],
+  method: RequestMethod.GET,
+  argument: 'orgId',
+  permissions: [PermissionEnum.GET_ORG_STAFF_LIST],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/staff',
+};
+
+export const UpdateOrganisationStaffAPI = {
+  path: '/staff/update',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}staff/update`,
+    `${Service.ORGANISATION_API_PREFIX}v1/staff/update`,
+  ],
+  method: RequestMethod.PUT,
+  argument: '',
+  permissions: [PermissionEnum.UPDATE_ORG_STAFF],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/staff/update',
+};
+
+export const AddOrganisationStaffAPI = {
+  path: '/staff/add',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}staff/add`,
+    `${Service.ORGANISATION_API_PREFIX}v1/staff/add`,
+  ],
+  method: RequestMethod.POST,
+  argument: '',
+  permissions: [PermissionEnum.ADD_ORG_STAFF],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/staff/add',
+};
+
 export const CreateClassAPI = {
   path: '/:orgId/classes/create',
   endpoint: [

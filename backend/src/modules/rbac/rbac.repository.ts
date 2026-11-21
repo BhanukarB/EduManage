@@ -8,9 +8,9 @@ export class RbacRepository {
   async createRole(roleData: CreateRoleDto): Promise<GetRoleDto> {
     try {
       const [role] = await knexConnection('roles_table')
-        .insert({ id: randomUUID(), role_name: roleData.name })
-        .returning(['id', 'role_name']);
-      return { id: role.id, name: role.role_name, permission_count: 0 };
+        .insert({ id: randomUUID(), role_name: roleData.name, role_type: roleData.roleType ?? null })
+        .returning(['id', 'role_name', 'role_type']);
+      return { id: role.id, name: role.role_name, roleType: role.role_type, permission_count: 0 };
     } catch (error) {
       throw new InternalServerErrorException(`Failed to create role: ${error.message}`);
     }
@@ -20,10 +20,10 @@ export class RbacRepository {
     try {
       const [role] = await knexConnection('roles_table')
         .where({ id: roleId })
-        .update({ role_name: roleData.name })
-        .returning(['id', 'role_name']);
+        .update({ role_name: roleData.name, ...(roleData.roleType !== undefined ? { role_type: roleData.roleType } : {}) })
+        .returning(['id', 'role_name', 'role_type']);
       if (!role) throw new Error('Role not found');
-      return { id: role.id, name: role.role_name };
+      return { id: role.id, name: role.role_name, roleType: role.role_type };
     } catch (error) {
       throw new InternalServerErrorException(`Failed to update role: ${error.message}`);
     }
@@ -70,12 +70,26 @@ export class RbacRepository {
   async getAllRoles(): Promise<GetRoleDto[]> {
     const roles = await knexConnection('roles_table as r')
       .leftJoin('role_permissions_table as rp', 'r.id', 'rp.role_id')
-      .select('r.id', 'r.role_name as name')
+      .select('r.id', 'r.role_name as name', 'r.role_type as roleType')
       .count('rp.permission_id as permission_count')
-      .groupBy('r.id', 'r.role_name');
+      .groupBy('r.id', 'r.role_name', 'r.role_type');
     return roles.map((role) => ({
       id: String(role.id),
       name: String(role.name),
+      roleType: role.roleType === null || role.roleType === undefined ? null : Number(role.roleType),
+      permission_count: Number(role.permission_count),
+    }));
+  }
+
+  async getBranchRoles(): Promise<GetRoleDto[]> {
+    const roles = await knexConnection('roles_table as r')
+      .leftJoin('role_permissions_table as rp', 'r.id', 'rp.role_id')
+      .where('r.role_type', 3)
+      .select('r.id', 'r.role_name as name', 'r.role_type as roleType')
+      .count('rp.permission_id as permission_count')
+      .groupBy('r.id', 'r.role_name', 'r.role_type');
+    return roles.map((role) => ({
+      id: String(role.id), name: String(role.name), roleType: Number(role.roleType),
       permission_count: Number(role.permission_count),
     }));
   }
@@ -94,7 +108,7 @@ export class RbacRepository {
       .join('roles_table as r', 'ur.role_id', 'r.id')
       .where('ur.user_id', userId);
     if (orgId) query.andWhere((builder) => builder.where('ur.org_id', orgId).orWhereNull('ur.org_id'));
-    return query.select('r.id', 'r.role_name as name', 'ur.org_id as org_id');
+    return query.select('r.id', 'r.role_name as name', 'r.role_type as roleType', 'ur.org_id as org_id');
   }
 
   async userHasRole(userId: string, roleName: string, orgId?: string): Promise<boolean> {

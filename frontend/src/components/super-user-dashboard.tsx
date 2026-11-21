@@ -32,7 +32,7 @@ import EditOutlined from "@mui/icons-material/EditOutlined";
 import { SignOutButton } from "@/components/sign-out-button";
 import { ProfileLink } from "@/components/profile-link";
 
-type Role = { id: string; name: string; permission_count?: number };
+type Role = { id: string; name: string; roleType?: number | null; permission_count?: number };
 type Permission = { id: string; permission: string };
 type RolePermissions = { roleId: string; role: string; permissions: Permission[] };
 type Organisation = { id: string; name: string; tagline?: string | null; type: number; emailId: string; phoneNumber?: string | null; address?: Record<string, unknown> | null; status: number };
@@ -72,6 +72,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleType, setNewRoleType] = useState(2);
   const [newRolePermissionIds, setNewRolePermissionIds] = useState<string[]>([]);
   const [organisationDialog, setOrganisationDialog] = useState<"create" | "edit" | null>(null);
   const [editingOrganisation, setEditingOrganisation] = useState<Organisation | null>(null);
@@ -165,7 +166,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
     try {
       const role = await api<Role>("rbac/roles", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, roleType: newRoleType }),
       });
       if (newRolePermissionIds.length) {
         await api<void>(`rbac/roles/${role.id}/permissions`, {
@@ -175,6 +176,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
       }
       setCreateOpen(false);
       setNewRoleName("");
+      setNewRoleType(2);
       setNewRolePermissionIds([]);
       setNotice(`Role “${name}” created.`);
       await loadManagerData();
@@ -390,6 +392,9 @@ export function SuperUserDashboard({ email }: { email?: string }) {
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
             <TextField autoFocus label="Role name" value={newRoleName} onChange={(event) => setNewRoleName(event.target.value)} fullWidth />
+            <TextField select label="Role type" value={newRoleType} onChange={(event) => setNewRoleType(Number(event.target.value))} fullWidth>
+              <MenuItem value={1}>Global</MenuItem><MenuItem value={2}>Organisation</MenuItem><MenuItem value={3}>Branch</MenuItem>
+            </TextField>
             <Typography fontWeight={600}>Permissions to assign</Typography>
             <Box sx={{ maxHeight: 300, overflow: "auto", border: "1px solid", borderColor: "divider", borderRadius: 1, p: 1 }}>
               {permissions.map((permission) => (

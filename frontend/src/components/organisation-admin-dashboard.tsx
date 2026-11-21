@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert, Box, Button, CircularProgress, Divider, List, ListItem, ListItemButton, ListItemText, Paper,
+  FormControlLabel, Switch,
   MenuItem, Stack, Tab, Tabs, TextField, Typography,
 } from "@mui/material";
 import DashboardOutlined from "@mui/icons-material/DashboardOutlined";
@@ -18,7 +19,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 type Organisation = { id: string; name: string; tagline?: string | null; type: number; emailId: string; phoneNumber?: string | null; address?: Record<string, unknown> | null; status: number };
 type Branch = { id: string; orgId: string; branchName: string; branchCode: string; type: number; emailId: string; phoneNumber?: string | null; address?: Record<string, unknown> | null; status: number };
 type BranchForm = Pick<Branch, "branchName" | "branchCode" | "type" | "emailId"> & { phoneNumber: string };
-type User = { id: string; firstName: string; lastName: string; emailId: string; phoneNumber?: string | null };
+type Staff = { id: string; userId: string; firstName: string; lastName: string; emailId: string; phoneNumber?: string | null; branchId: string | null; designation: string; status: number };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/backend/${path}`, { ...init, cache: "no-store", headers: { "content-type": "application/json", ...init?.headers } });
@@ -33,11 +34,12 @@ export function OrganisationAdminDashboard({ email, orgId }: { email?: string; o
   const [memberTab, setMemberTab] = useState(0);
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [staff, setStaff] = useState<User[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [branchForm, setBranchForm] = useState<BranchForm>({ branchName: "", branchCode: "", type: 1, emailId: "", phoneNumber: "" });
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [savingBranch, setSavingBranch] = useState(false);
+  const [savingStaffId, setSavingStaffId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +48,7 @@ export function OrganisationAdminDashboard({ email, orgId }: { email?: string; o
     Promise.all([
       api<Organisation>(`organisations/get/${orgId}`),
       api<Branch[]>(`organisations/${orgId}/branches`),
-      api<User[]>("users"),
+      api<Staff[]>(`organisations/${orgId}/staff`),
     ]).then(([org, branchList, users]) => {
       if (!active) return;
       setOrganisation(org);
@@ -96,6 +98,20 @@ export function OrganisationAdminDashboard({ email, orgId }: { email?: string; o
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not update branch.");
     } finally { setSavingBranch(false); }
+  };
+
+  const updateStaff = async (staffMember: Staff, changes: Partial<Pick<Staff, "status" | "designation" | "branchId">>) => {
+    setSavingStaffId(staffMember.id);
+    setError(null);
+    try {
+      const updated = await api<Staff>("organisations/staff/update", {
+        method: "PUT",
+        body: JSON.stringify({ orgId, staffId: staffMember.id, ...changes }),
+      });
+      setStaff((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not update staff member.");
+    } finally { setSavingStaffId(null); }
   };
 
   return (
@@ -154,7 +170,7 @@ export function OrganisationAdminDashboard({ email, orgId }: { email?: string; o
               </Stack>
             </> : <>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                <Box><Typography variant="h6" fontWeight={700}>Branches</Typography><Typography variant="body2" color="text.secondary">Manage locations in your organisation</Typography></Box>
+                <Box><Typography variant="h6" fontWeight={700}>Branches</Typography><Typography variant="body2" color="text.secondary">Manage branches in your organisation</Typography></Box>
                 <Button variant="contained" startIcon={<AddOutlined />} onClick={() => { setError(null); setBranchForm({ branchName: "", branchCode: "", type: organisation?.type ?? 1, emailId: "", phoneNumber: "" }); setBranchDialogOpen(true); }}>Add branch</Button>
               </Stack>
               {branches.length ? <List disablePadding sx={{ display: "grid", gap: 1.5, mt: 2 }}>{branches.map((branch) => <ListItem key={branch.id} disablePadding>
@@ -177,7 +193,16 @@ export function OrganisationAdminDashboard({ email, orgId }: { email?: string; o
           {section === 2 && <Paper variant="outlined" sx={{ borderRadius: 3, p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Members</Typography>
             <Tabs value={memberTab} onChange={(_, value) => setMemberTab(value)} aria-label="Member categories"><Tab label="Staff" /><Tab label="Students" /></Tabs>
-            {memberTab === 0 ? staff.length ? <List>{staff.map((user) => <ListItem key={user.id} divider><ListItemText primary={`${user.firstName} ${user.lastName}`} secondary={[user.emailId, user.phoneNumber].filter(Boolean).join(" · ")} /></ListItem>)}</List> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>No staff members found.</Typography> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Student records will appear here.</Typography>}
+            {memberTab === 0 ? staff.length ? <List disablePadding>{staff.map((person) => <ListItem key={person.id} divider sx={{ display: "block", py: 2 }}>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
+                <ListItemText sx={{ flex: 1 }} primary={`${person.firstName} ${person.lastName}`} secondary={[person.emailId, person.phoneNumber].filter(Boolean).join(" · ")} />
+                <TextField size="small" label="Designation" value={person.designation} onChange={(event) => setStaff((current) => current.map((item) => item.id === person.id ? { ...item, designation: event.target.value } : item))} onBlur={(event) => void updateStaff(person, { designation: event.target.value })} sx={{ minWidth: 170 }} />
+                <TextField select size="small" label="Branch" value={person.branchId ?? ""} onChange={(event) => void updateStaff(person, { branchId: event.target.value || null })} sx={{ minWidth: 190 }}>
+                  <MenuItem value="">No branch</MenuItem>{branches.map((branch) => <MenuItem key={branch.id} value={branch.id}>{branch.branchName}</MenuItem>)}
+                </TextField>
+                <FormControlLabel control={<Switch checked={person.status === 1} disabled={savingStaffId === person.id} onChange={(_, checked) => void updateStaff(person, { status: checked ? 1 : 0 })} />} label={person.status === 1 ? "Active" : "Inactive"} />
+              </Stack>
+            </ListItem>)}</List> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>No staff members found.</Typography> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Student records will appear here.</Typography>}
           </Paper>}
         </>}
       </Box>

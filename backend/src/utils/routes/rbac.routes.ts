@@ -42,6 +42,16 @@ export const GetAllRolesAPI = {
     sample: '/roles',
 }
 
+export const GetBranchRolesAPI = {
+  path: '/branch-roles',
+  endpoint: [`${Service.RBAC_API_PREFIX}branch-roles`, `${Service.RBAC_API_PREFIX}v1/branch-roles`],
+  method: RequestMethod.GET,
+  argument: '',
+  permissions: [PermissionEnum.GET_BRANCH_ROLES],
+  service: Service.RBAC_SERVICE,
+  sample: '/branch-roles',
+};
+
 export const GetAllPermissionsAPI = {
     path: '/permissions',
     endpoint: [

@@ -53,6 +53,10 @@ export enum PermissionEnum {
   CREATE_BATCH_SUBJECT_MAPPING = 'create_batch_subject_mapping',
   UPDATE_BATCH_SUBJECT_MAPPING = 'update_batch_subject_mapping',
   ADD_STUDENT_TO_ORG = 'add_student_to_org',
+  GET_ORG_STAFF_LIST = 'get_org_staff_list',
+  UPDATE_ORG_STAFF = 'update_org_staff',
+  ADD_ORG_STAFF = 'add_org_staff',
+  GET_BRANCH_ROLES = 'get_branch_roles',
 
   // Notification
   GET_ALL_NOTIFICATION_FORMATS = 'get_all_notification_formats',
