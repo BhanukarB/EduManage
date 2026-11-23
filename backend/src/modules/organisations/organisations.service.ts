@@ -90,6 +90,10 @@ export class OrganisationsService {
     return this.organisationsRepository.findClassListByOrgId(orgId);
   }
 
+  async getClassListByBranch(orgId: string, branchId: string): Promise<ClassDto[]> {
+    return this.organisationsRepository.findClassListByBranch(orgId, branchId);
+  }
+
   async createClassSection(data: CreateClassSectionDto): Promise<ClassSectionDto> {
     return this.organisationsRepository.createClassSection(data);
   }

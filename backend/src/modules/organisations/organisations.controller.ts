@@ -20,6 +20,7 @@ import {
   GetBranchListByOrgIdAPI,
   GetOrganisationStaffAPI,
   GetClassListByOrgIdAPI,
+  GetClassListByBranchAPI,
   GetClassBatchListAPI,
   GetClassSectionListAPI,
   GetOrganisationByIdAPI,
@@ -251,6 +252,20 @@ export class OrganisationsController {
   getClassListByOrgId(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string): Promise<ClassDto[]> {
     this.assertOrganisationAccess(req, orgId);
     return this.organisationsService.getClassListByOrgId(orgId);
+  }
+
+  @Get(GetClassListByBranchAPI.path)
+  @UseGuards(AuthGuard, PermissionsGuard)
+  @Permissions(...GetClassListByBranchAPI.permissions)
+  @ApiOperation({ summary: 'List classes mapped to a branch in an organisation' })
+  @ApiResponse({ status: 200, type: [ClassDto] })
+  getClassListByBranch(
+    @Req() req: any,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+  ): Promise<ClassDto[]> {
+    this.assertOrganisationAccess(req, orgId);
+    return this.organisationsService.getClassListByBranch(orgId, branchId);
   }
 
   //sections

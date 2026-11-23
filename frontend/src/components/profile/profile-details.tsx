@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Alert, Avatar, Box, Button, Container, Paper, Stack, Typography } from "@mui/material";
 import ArrowBack from "@mui/icons-material/ArrowBack";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import { ProfileLink } from "@/components/profile-link";
+import { api, extractErrorMessage } from "@/lib/api";
 
 type UserProfile = {
   id: string;
@@ -23,19 +26,12 @@ export function ProfileDetails() {
   useEffect(() => {
     let active = true;
 
-    fetch("/api/backend/users/me", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = await response.json().catch(() => null);
-          throw new Error(body?.message ?? "Could not load your profile.");
-        }
-        return response.json() as Promise<UserProfile>;
-      })
+    api<UserProfile>("users/me")
       .then((user) => {
         if (active) setProfile(user);
       })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Could not load your profile.");
+        if (active) setError(extractErrorMessage(reason, "Could not load your profile."));
       });
 
     return () => {
@@ -51,12 +47,15 @@ export function ProfileDetails() {
     <Box component="main" sx={{ minHeight: "100vh", py: 8 }}>
       <Container maxWidth="sm">
         <Stack spacing={3}>
-          <Button component={Link} href="/dashboard" startIcon={<ArrowBack />} sx={{ alignSelf: "flex-start" }}>
-            Back to dashboard
-          </Button>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Button component={Link} href="/dashboard" startIcon={<ArrowBack />} sx={{ alignSelf: "flex-start" }}>
+              Back to dashboard
+            </Button>
+            <ProfileLink email={profile?.emailId} />
+          </Stack>
           <Paper elevation={0} sx={{ p: { xs: 4, md: 6 }, border: "1px solid", borderColor: "divider" }}>
             <Stack spacing={3} alignItems="center">
-              <Avatar sx={{ width: 72, height: 72, fontSize: 28 }}>
+              <Avatar sx={{ width: 80, height: 80, fontSize: 32, bgcolor: "primary.main", color: "common.white" }}>
                 {fullName.charAt(0).toUpperCase() || "?"}
               </Avatar>
               <Typography variant="h4" component="h1" fontWeight={700}>Your profile</Typography>
@@ -64,16 +63,16 @@ export function ProfileDetails() {
                 <Alert severity="error" sx={{ width: "100%" }}>{error}</Alert>
               ) : profile ? (
                 <Box sx={{ width: "100%" }}>
-                  <Typography variant="overline" color="text.secondary">Name</Typography>
-                  <Typography>{fullName}</Typography>
-                  <Typography variant="overline" color="text.secondary" sx={{ display: "block", mt: 2 }}>Email</Typography>
-                  <Typography>{profile.emailId}</Typography>
-                  <Typography variant="overline" color="text.secondary" sx={{ display: "block", mt: 2 }}>Phone</Typography>
-                  <Typography>{profile.phoneNumber || "Not provided"}</Typography>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "140px 1fr" }, gap: 2, mt: 1 }}>
+                    <Typography variant="caption" color="text.secondary">NAME</Typography><Typography>{fullName}</Typography>
+                    <Typography variant="caption" color="text.secondary">EMAIL</Typography><Typography sx={{ overflowWrap: "anywhere" }}>{profile.emailId}</Typography>
+                    <Typography variant="caption" color="text.secondary">PHONE</Typography><Typography>{profile.phoneNumber || "Not provided"}</Typography>
+                  </Box>
                 </Box>
               ) : (
                 <Typography color="text.secondary" role="status">Loading your profile…</Typography>
               )}
+              <Button variant="outlined" disabled startIcon={<EditOutlined />} sx={{ mt: 1 }}>Edit profile</Button>
             </Stack>
           </Paper>
         </Stack>

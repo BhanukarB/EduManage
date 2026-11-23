@@ -52,12 +52,21 @@ export default function LoginPage() {
   }
 
   return (
-    <Box component="main" sx={{ minHeight: "100vh", display: "grid", placeItems: "center", p: 2 }}>
-      <Container maxWidth="sm">
-        <Paper elevation={0} sx={{ p: { xs: 3, sm: 5 }, border: "1px solid", borderColor: "divider" }}>
+    <Box component="main" sx={{ minHeight: "100vh", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(360px, 0.9fr) minmax(480px, 1.1fr)" }, bgcolor: "background.paper" }}>
+      <Box sx={{ display: { xs: "none", md: "flex" }, flexDirection: "column", justifyContent: "space-between", p: { md: 6, lg: 9 }, color: "common.white", background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)` }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: "0.08em", color: "common.white" }}>CLASSMANAGE</Typography>
+        <Box sx={{ maxWidth: 440 }}>
+          <Typography variant="h3" component="p" fontWeight={700} sx={{ lineHeight: 1.15 }}>A clearer view of your classroom.</Typography>
+          <Typography sx={{ mt: 2, color: "rgba(255,255,255,0.78)", fontSize: "1.05rem", lineHeight: 1.7 }}>Bring your organisation, branches, and people together in one place.</Typography>
+        </Box>
+        <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.72)" }}>ClassManage · School and coaching operations</Typography>
+      </Box>
+      <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", p: { xs: 2, sm: 4 } }}>
+      <Container maxWidth={false} sx={{ maxWidth: 440, px: 0 }}>
+        <Paper elevation={0} sx={{ p: { xs: 3, sm: 5 }, border: "1px solid", borderColor: "divider", borderRadius: "16px", boxShadow: "0 1px 3px rgba(15,23,42,0.04), 0 6px 16px rgba(15,23,42,0.04)" }}>
           <Stack spacing={3} component="form" onSubmit={handleSubmit}>
             <Box>
-              <Typography variant="overline" color="primary.main" fontWeight={700} letterSpacing={2}>
+              <Typography variant="overline" color="primary.main" fontWeight={700} letterSpacing={2} sx={{ display: { xs: "block", md: "none" } }}>
                 CLASSMANAGE
               </Typography>
               <Typography variant="h4" component="h1" fontWeight={700} sx={{ mt: 1 }}>
@@ -104,12 +113,13 @@ export default function LoginPage() {
                 },
               }}
             />
-            <Button type="submit" variant="contained" size="large" disabled={submitting}>
+            <Button type="submit" variant="contained" size="large" fullWidth disabled={submitting} sx={{ height: 48, fontSize: "0.9375rem" }}>
               {submitting ? "Signing in…" : "Sign in"}
             </Button>
           </Stack>
         </Paper>
       </Container>
+      </Box>
     </Box>
   );
 }

@@ -184,6 +184,19 @@ export const GetClassListByOrgIdAPI = {
   sample: '/<orgId>/classes',
 };
 
+export const GetClassListByBranchAPI = {
+  path: '/:orgId/:branchId/classes',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/classes`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/classes`,
+  ],
+  method: RequestMethod.GET,
+  argument: ['orgId', 'branchId'],
+  permissions: [PermissionEnum.GET_CLASS_LIST_BY_BRANCH],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/<branchId>/classes',
+};
+
 export const CreateClassSectionAPI = {
   path: '/:orgId/:branchId/:academicSessionId/class-sections/create',
   endpoint: [

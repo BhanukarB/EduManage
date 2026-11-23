@@ -580,6 +580,24 @@ export class OrganisationsRepository {
         return knexConnection('classes').where({ org_id: orgId }).select(classColumns).orderBy('created_at', 'desc');
     }
 
+    async findClassListByBranch(orgId: string, branchId: string): Promise<ClassDto[]> {
+        const branch = await knexConnection('branches').where({ id: branchId, org_id: orgId }).first('id');
+        if (!branch) throw new NotFoundException('Branch not found for this organisation');
+
+        const sectionClassIds = knexConnection('sections_table')
+            .select('class_id')
+            .where({ branch_id: branchId });
+        const batchClassIds = knexConnection('batches_table')
+            .select('class_id')
+            .where({ org_id: orgId, branch_id: branchId });
+
+        return knexConnection('classes')
+            .where({ org_id: orgId })
+            .whereIn('id', sectionClassIds.union(batchClassIds))
+            .select(classColumns)
+            .orderBy('created_at', 'desc');
+    }
+
     async createBranch(data: CreateBranchDto): Promise<BranchDto> {
         const organisation = await knexConnection('organisations').where({ id: data.orgId }).first('id');
         if (!organisation) throw new NotFoundException('Organisation not found');

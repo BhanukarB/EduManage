@@ -1,3 +1,5 @@
+"use client";
+
 import { Avatar, IconButton, Tooltip } from "@mui/material";
 import AccountCircleOutlined from "@mui/icons-material/AccountCircleOutlined";
 
@@ -9,9 +11,9 @@ export function ProfileLink({ email }: { email?: string }) {
       <IconButton
         href="/dashboard/profile"
         aria-label="Open profile"
-        sx={{ border: "1px solid", borderColor: "divider" }}
+        sx={{ p: 0.5, "&:hover": { opacity: 0.82, bgcolor: "action.hover" } }}
       >
-        {initials ? <Avatar sx={{ width: 30, height: 30, fontSize: 14 }}>{initials}</Avatar> : <AccountCircleOutlined />}
+        {initials ? <Avatar sx={{ width: 36, height: 36, fontSize: 15, bgcolor: "primary.main", color: "common.white" }}>{initials}</Avatar> : <AccountCircleOutlined />}
       </IconButton>
     </Tooltip>
   );
