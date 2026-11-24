@@ -8,6 +8,14 @@ import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from 'src/modules/rbac/rbac.service';
 import { Request } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
+import knexConnection from '../../db/connector/knex';
+
+interface AuthTokenPayload extends JwtPayload {
+  uid: string;
+  orgId?: string;
+  roles?: string[];
+}
 
 // Extend Express Request interface to include 'permissions'
 declare module 'express-serve-static-core' {
@@ -38,14 +46,22 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      const decoded: any = this.jwtService.verify(token, {
+      const decoded = this.jwtService.verify<AuthTokenPayload>(token, {
         secret: process.env.JWT_SECRET,
       });
 
+      const isStudent = decoded.roles?.includes('student') ?? false;
+      const branchMembership = decoded.orgId
+        ? await knexConnection(isStudent ? 'organisation_student_table' : 'organisation_staff_table')
+            .where({ user_id: decoded.uid, org_id: decoded.orgId })
+            .first('branch_id as branchId')
+        : undefined;
+
       // Attach user information to the request object
       request.user = {
-        uid: decoded.uid,
         ...decoded,
+        uid: decoded.uid,
+        branchId: branchMembership?.branchId ?? null,
       };
       
       // Fetch and attach user permissions

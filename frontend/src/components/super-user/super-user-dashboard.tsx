@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import { useEffect, useRef, useState } from "react";
+import { Box, Stack } from "@mui/material";
 import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
 import AdminPanelSettingsOutlined from "@mui/icons-material/AdminPanelSettingsOutlined";
 import { ProfileLink } from "@/components/profile-link";
 import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
-import { api, extractErrorMessage } from "@/lib/api";
+import { api, extractErrorMessage, readApi } from "@/lib/api";
 import type { Organisation, Permission, Role } from "@/types/domain";
 import { RoleManagerSection } from "@/components/super-user/role-manager-section";
 import { OrganisationSection } from "@/components/super-user/organisation-section";
@@ -31,7 +31,12 @@ export function SuperUserDashboard({ email }: { email?: string }) {
   const [selectedRole, setSelectedRole] = useState<RolePermissions | null>(null);
   const [checkedPermissionIds, setCheckedPermissionIds] = useState<string[]>([]);
   const [rolePermissionSearch, setRolePermissionSearch] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [sectionLoad, setSectionLoad] = useState<{ section: string; loading: boolean; error: string | null }>({
+    section: "Organisations", loading: true, error: null,
+  });
+  const loading = sectionLoad.section !== activeSection || sectionLoad.loading;
+  const roleRequest = useRef(0);
+  const adminsRequest = useRef(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -50,53 +55,48 @@ export function SuperUserDashboard({ email }: { email?: string }) {
   const [editingAdminUser, setEditingAdminUser] = useState<OrganisationAdmin | null>(null);
   const [adminUserForm, setAdminUserForm] = useState<AdminUserForm>({ firstName: "", lastName: "", emailId: "", phoneNumber: "" });
 
-  const loadManagerData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [roleList, permissionList] = await Promise.all([
-        api<Role[]>("rbac/roles"),
-        api<Permission[]>("rbac/permissions"),
-      ]);
-      setRoles(roleList);
-      setPermissions(permissionList);
-    } catch (reason) {
-      setError(extractErrorMessage(reason, "Could not load role manager data."));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadOrganisations = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setOrganisations(await api<Organisation[]>("organisations"));
-    } catch (reason) {
-      setError(extractErrorMessage(reason, "Could not load organisations."));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const task = Promise.resolve().then(() => {
-      if (activeSection === "Role Manager") return loadManagerData();
-      return loadOrganisations();
-    });
-    void task;
-  }, [activeSection, loadManagerData, loadOrganisations]);
+    let active = true;
+    const load = async (): Promise<void> => {
+      if (!active) return;
+      setSectionLoad({ section: activeSection, loading: true, error: null });
+      try {
+        if (activeSection === "Role Manager") {
+          const [roleList, permissionList] = await Promise.all([
+            readApi<Role[]>("rbac/roles", 60_000),
+            readApi<Permission[]>("rbac/permissions", 60_000),
+          ]);
+          if (active) {
+            setRoles(roleList);
+            setPermissions(permissionList);
+          }
+        } else {
+          const list = await readApi<Organisation[]>("organisations", 60_000);
+          if (active) setOrganisations(list);
+        }
+        if (active) setSectionLoad({ section: activeSection, loading: false, error: null });
+      } catch (reason) {
+        if (active) setSectionLoad({ section: activeSection, loading: false, error: extractErrorMessage(reason, "Could not load this section.") });
+      }
+    };
+    void Promise.resolve().then(load);
+    return () => { active = false; };
+  }, [activeSection]);
+
+  const sectionError = error ?? (sectionLoad.section === activeSection ? sectionLoad.error : null);
 
   const openRole = async (role: Role) => {
+    const request = ++roleRequest.current;
     setError(null);
     setNotice(null);
     setRolePermissionSearch("");
     try {
       const details = await api<RolePermissions>(`rbac/roles/${role.id}/permissions`);
+      if (request !== roleRequest.current) return;
       setSelectedRole(details);
       setCheckedPermissionIds(details.permissions.map((permission) => permission.id));
     } catch (reason) {
-      setError(extractErrorMessage(reason, "Could not load role permissions."));
+      if (request === roleRequest.current) setError(extractErrorMessage(reason, "Could not load role permissions."));
     }
   };
 
@@ -108,7 +108,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
       await api<void>(`rbac/roles/${selectedRole.roleId}/permissions`, {
         method: "POST",
         body: JSON.stringify({ permissionIds: checkedPermissionIds }),
-      });
+      }, ["rbac/roles"]);
       const updated = permissions.filter((permission) => checkedPermissionIds.includes(permission.id));
       setSelectedRole({ ...selectedRole, permissions: updated });
       setRoles((current) => current.map((role) => role.id === selectedRole.roleId
@@ -131,19 +131,19 @@ export function SuperUserDashboard({ email }: { email?: string }) {
       const role = await api<Role>("rbac/roles", {
         method: "POST",
         body: JSON.stringify({ name, roleType: newRoleType }),
-      });
+      }, ["rbac/roles"]);
       if (newRolePermissionIds.length) {
         await api<void>(`rbac/roles/${role.id}/permissions`, {
           method: "POST",
           body: JSON.stringify({ permissionIds: newRolePermissionIds }),
-        });
+        }, ["rbac/roles"]);
       }
       setCreateOpen(false);
       setNewRoleName("");
       setNewRoleType(2);
       setNewRolePermissionIds([]);
       setNotice(`Role “${name}” created.`);
-      await loadManagerData();
+      setRoles(await readApi<Role[]>("rbac/roles", 60_000));
     } catch (reason) {
       setError(extractErrorMessage(reason, "Could not create role."));
     } finally {
@@ -187,6 +187,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
   };
 
   const openOrganisationDetails = async (organisation: Organisation) => {
+    const request = ++adminsRequest.current;
     setError(null);
     setNotice(null);
     setSelectedOrganisation(organisation);
@@ -194,11 +195,12 @@ export function SuperUserDashboard({ email }: { email?: string }) {
     setOrganisationDetailsOpen(true);
     setAdminsLoading(true);
     try {
-      setOrganisationAdmins(await api<OrganisationAdmin[]>(`organisations/${organisation.id}/org-admins`));
+      const admins = await api<OrganisationAdmin[]>(`organisations/${organisation.id}/org-admins`);
+      if (request === adminsRequest.current) setOrganisationAdmins(admins);
     } catch (reason) {
-      setError(extractErrorMessage(reason, "Could not load organisation admins."));
+      if (request === adminsRequest.current) setError(extractErrorMessage(reason, "Could not load organisation admins."));
     } finally {
-      setAdminsLoading(false);
+      if (request === adminsRequest.current) setAdminsLoading(false);
     }
   };
 
@@ -216,7 +218,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
     setAdminUserDialogOpen(true);
     if (!existingAdmin) {
       try {
-        setRoles(await api<Role[]>("rbac/roles"));
+        setRoles(await readApi<Role[]>("rbac/roles", 60_000));
       } catch (reason) {
         setError(extractErrorMessage(reason, "Could not load roles."));
       }
@@ -260,7 +262,7 @@ export function SuperUserDashboard({ email }: { email?: string }) {
 
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", bgcolor: "background.default" }}>
-      <DashboardSidebar items={sections} active={activeSection} onNavigate={setActiveSection} email={email} />
+      <DashboardSidebar items={sections} active={activeSection} onNavigate={(section) => { setError(null); setNotice(null); setActiveSection(section); }} email={email} />
 
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, maxWidth: 1360, mx: "auto", p: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>
@@ -271,20 +273,20 @@ export function SuperUserDashboard({ email }: { email?: string }) {
               roles={roles}
               permissions={permissions}
               loading={loading}
-              error={error}
+              error={sectionError}
               notice={notice}
               activeTab={activeRoleTab}
               onTabChange={setActiveRoleTab}
               onCreateRole={() => setCreateOpen(true)}
               onOpenRole={(role) => void openRole(role)}
-              onDismissError={() => setError(null)}
+              onDismissError={() => { setError(null); setSectionLoad((current) => ({ ...current, error: null })); }}
               onDismissNotice={() => setNotice(null)}
             />
           ) : (
             <OrganisationSection
               organisations={organisations}
               loading={loading}
-              error={error}
+              error={sectionError}
               notice={notice}
               onCreate={() => openOrganisationDialog("create")}
               onOpen={(organisation) => void openOrganisationDetails(organisation)}

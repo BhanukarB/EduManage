@@ -464,10 +464,11 @@ export class OrganisationsRepository {
         return batch;
     }
 
-    async findClassBatchList(orgId: string, branchId: string, academicSessionId: string): Promise<ClassBatchDto[]> {
+    async findClassBatchList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassBatchDto[]> {
         await this.validateClassSectionScope(orgId, branchId, academicSessionId);
         return knexConnection('batches_table')
             .where({ org_id: orgId, branch_id: branchId, academic_session_id: academicSessionId })
+            .modify((query) => { if (classId) query.where('class_id', classId); })
             .select(classBatchColumns)
             .orderBy('created_at', 'desc');
     }
@@ -535,11 +536,12 @@ export class OrganisationsRepository {
         return section;
     }
 
-    async findClassSectionList(orgId: string, branchId: string, academicSessionId: string): Promise<ClassSectionDto[]> {
+    async findClassSectionList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassSectionDto[]> {
         await this.validateClassSectionScope(orgId, branchId, academicSessionId);
         return knexConnection('sections_table as s')
             .join('classes as c', 's.class_id', 'c.id')
             .where({ 'c.org_id': orgId, 's.branch_id': branchId, 's.academic_session_id': academicSessionId })
+            .modify((query) => { if (classId) query.where('s.class_id', classId); })
             .select(classSectionColumns)
             .orderBy('s.created_at', 'desc');
     }
@@ -554,6 +556,33 @@ export class OrganisationsRepository {
             })
             .returning(classColumns);
         return createdClass;
+    }
+
+    async createBranchClass(orgId: string, branchId: string, data: Omit<CreateClassDto, 'orgId'>): Promise<ClassDto> {
+        const branch = await knexConnection('branches').where({ id: branchId, org_id: orgId }).first('id');
+        if (!branch) throw new NotFoundException('Branch not found for this organisation');
+        return knexConnection.transaction(async (trx) => {
+            const [created] = await trx('classes').insert({
+                id: randomUUID(), org_id: orgId, class_name: data.className,
+                class_code: data.classCode, description: data.description ?? null,
+            }).returning(classColumns);
+            await trx('branch_classes_table').insert({ id: randomUUID(), org_id: orgId, branch_id: branchId, class_id: created.id });
+            return created;
+        });
+    }
+
+    async updateBranchClass(orgId: string, branchId: string, id: string, data: UpdateClassDto): Promise<ClassDto> {
+        const mapping = await knexConnection('branch_classes_table').where({ org_id: orgId, branch_id: branchId, class_id: id }).first('id');
+        if (!mapping) throw new NotFoundException('Class not found for this branch');
+        const changes: Record<string, unknown> = {};
+        if (data.className !== undefined) changes.class_name = data.className;
+        if (data.classCode !== undefined) changes.class_code = data.classCode;
+        if (data.description !== undefined) changes.description = data.description;
+        if (Object.keys(changes).length) {
+            changes.updated_at = knexConnection.fn.now();
+            await knexConnection('classes').where({ id, org_id: orgId }).update(changes);
+        }
+        return this.findClassById(id);
     }
 
     async updateClass(id: string, data: UpdateClassDto): Promise<ClassDto> {
@@ -580,10 +609,18 @@ export class OrganisationsRepository {
         return knexConnection('classes').where({ org_id: orgId }).select(classColumns).orderBy('created_at', 'desc');
     }
 
-    async findClassListByBranch(orgId: string, branchId: string): Promise<ClassDto[]> {
+    async findClassListByBranch(orgId: string, branchId: string, classId?: string): Promise<ClassDto[]> {
         const branch = await knexConnection('branches').where({ id: branchId, org_id: orgId }).first('id');
         if (!branch) throw new NotFoundException('Branch not found for this organisation');
 
+        return this.branchClassesQuery(orgId, branchId)
+            .modify((query) => { if (classId) query.where('id', classId); })
+            .select(classColumns)
+            .orderBy('created_at', 'desc');
+    }
+
+    private branchClassesQuery(orgId: string, branchId: string) {
+        const mappedClassIds = knexConnection('branch_classes_table').select('class_id').where({ org_id: orgId, branch_id: branchId });
         const sectionClassIds = knexConnection('sections_table')
             .select('class_id')
             .where({ branch_id: branchId });
@@ -593,9 +630,7 @@ export class OrganisationsRepository {
 
         return knexConnection('classes')
             .where({ org_id: orgId })
-            .whereIn('id', sectionClassIds.union(batchClassIds))
-            .select(classColumns)
-            .orderBy('created_at', 'desc');
+            .whereIn('id', mappedClassIds.union(sectionClassIds).union(batchClassIds));
     }
 
     async createBranch(data: CreateBranchDto): Promise<BranchDto> {
@@ -638,11 +673,12 @@ export class OrganisationsRepository {
         return knexConnection('branches').where({ org_id: orgId }).select(branchColumns).orderBy('created_at', 'desc');
     }
 
-    async findOrganisationStaff(orgId: string): Promise<OrganisationStaffDto[]> {
+    async findOrganisationStaff(orgId: string, branchId?: string): Promise<OrganisationStaffDto[]> {
         return knexConnection('organisation_staff_table as s')
             .join('users_table as u', 's.user_id', 'u.id')
             .where('s.org_id', orgId)
             .whereNot('s.status', 2)
+            .modify((query) => { if (branchId) query.where('s.branch_id', branchId); })
             .select(
                 's.id', 's.user_id as userId', 'u.first_name as firstName', 'u.last_name as lastName',
                 'u.email_id as emailId', 'u.phone_number as phoneNumber', 's.branch_id as branchId',
@@ -724,22 +760,20 @@ export class OrganisationsRepository {
         return staff;
     }
 
-    async getBranchSummary(orgId: string, branchId: string) {
+    async getBranchSummary(orgId: string, branchId: string, countsOnly = false) {
         const branch = await knexConnection('branches').where({ id: branchId, org_id: orgId }).select(branchColumns).first();
         if (!branch) throw new NotFoundException('Branch not found');
-        const [staffCount, studentCount, sectionClasses, batchClasses] = await Promise.all([
+        const classes = this.branchClassesQuery(orgId, branchId);
+        const [staffCount, studentCount, classData] = await Promise.all([
             knexConnection('organisation_staff_table').where({ org_id: orgId, branch_id: branchId }).whereNot('status', 2).count('* as count').first(),
             knexConnection('organisation_student_table').where({ org_id: orgId, branch_id: branchId, status: 1 }).count('* as count').first(),
-            knexConnection('classes as c').join('sections_table as s', 's.class_id', 'c.id')
-                .where({ 'c.org_id': orgId, 's.branch_id': branchId }).distinct('c.id', 'c.class_name as className', 'c.class_code as classCode')
-                .orderBy('c.class_name'),
-            knexConnection('classes as c').join('batches_table as b', 'b.class_id', 'c.id')
-                .where({ 'c.org_id': orgId, 'b.branch_id': branchId }).distinct('c.id', 'c.class_name as className', 'c.class_code as classCode')
-                .orderBy('c.class_name'),
+            countsOnly
+                ? classes.count('* as count').first().then((row) => ({ classCount: Number(row?.count ?? 0) }))
+                : classes.select('id', 'class_name as className', 'class_code as classCode').then((rows) => ({
+                    classes: rows.sort((a, b) => a.className.localeCompare(b.className)),
+                })),
         ]);
-        const classes = [...new Map([...sectionClasses, ...batchClasses].map((item) => [item.id, item])).values()]
-            .sort((a, b) => a.className.localeCompare(b.className));
-        return { branch, staffCount: Number(staffCount?.count ?? 0), studentCount: Number(studentCount?.count ?? 0), classes };
+        return { branch, staffCount: Number(staffCount?.count ?? 0), studentCount: Number(studentCount?.count ?? 0), ...classData };
     }
 
     async createOrg(data: CreateOrganisationDto): Promise<OrganisationDto> {
@@ -751,6 +785,18 @@ export class OrganisationsRepository {
             })
             .returning(organisationColumns);
         return organisation;
+    }
+
+    async getOrganisationCounts(orgId: string): Promise<{ branchCount: number; staffCount: number }> {
+        const [branches, staff] = await Promise.all([
+            knexConnection('branches').where({ org_id: orgId }).count('* as count').first(),
+            knexConnection('organisation_staff_table as s')
+                .join('users_table as u', 's.user_id', 'u.id')
+                .where('s.org_id', orgId)
+                .whereNot('s.status', 2)
+                .count('* as count').first(),
+        ]);
+        return { branchCount: Number(branches?.count ?? 0), staffCount: Number(staff?.count ?? 0) };
     }
 
     async findOrgById(id: string): Promise<OrganisationDto> {

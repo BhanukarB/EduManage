@@ -158,6 +158,26 @@ export const CreateClassAPI = {
   sample: '/<orgId>/classes/create',
 };
 
+export const CreateBranchClassAPI = {
+  path: '/:orgId/:branchId/classes/create',
+  endpoint: [`${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/classes/create`],
+  method: RequestMethod.POST,
+  argument: ['orgId', 'branchId'],
+  permissions: [PermissionEnum.CREATE_CLASS],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/<branchId>/classes/create',
+};
+
+export const UpdateBranchClassAPI = {
+  path: '/:orgId/:branchId/classes/update/:id',
+  endpoint: [`${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/classes/update/:id`],
+  method: RequestMethod.PUT,
+  argument: ['orgId', 'branchId', 'id'],
+  permissions: [PermissionEnum.UPDATE_CLASS],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/<branchId>/classes/update/<id>',
+};
+
 export const UpdateClassAPI = {
   path: '/classes/update/:id',
   endpoint: [

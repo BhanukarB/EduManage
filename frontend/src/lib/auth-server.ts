@@ -11,6 +11,7 @@ export interface JwtClaims {
   role_names?: unknown;
   email?: unknown;
   orgId?: unknown;
+  branchId?: unknown;
   exp?: number;
 }
 
@@ -32,21 +33,37 @@ export function getRoleNames(claims: JwtClaims | null): string[] {
     .filter((role): role is string => typeof role === "string");
 }
 
-export function isSuperUser(token?: string): boolean {
-  const roles = getRoleNames(decodeTokenClaims(token));
-  return roles.includes("super_user") || roles.includes("super_admin");
+interface BranchManagerContext {
+  orgId: string;
+  branchId: string;
 }
 
-export function getOrgAdminOrgId(token?: string): string | null {
-  const claims = decodeTokenClaims(token);
-  return getRoleNames(claims).includes("org_admin") && typeof claims?.orgId === "string"
-    ? claims.orgId
-    : null;
+interface DashboardContext {
+  email?: string;
+  superUser: boolean;
+  organisationId: string | null;
+  manager: BranchManagerContext | null;
 }
 
-export function getEmailFromToken(token?: string): string | undefined {
-  const email = decodeTokenClaims(token)?.email;
-  return typeof email === "string" ? email : undefined;
+export async function requireDashboardContext(): Promise<DashboardContext> {
+  const jar = await requireAuth();
+  const claims = decodeTokenClaims(jar.get(ACCESS_COOKIE)?.value);
+  const roles = getRoleNames(claims);
+  const orgId = typeof claims?.orgId === "string" ? claims.orgId : null;
+  return {
+    email: typeof claims?.email === "string" ? claims.email : undefined,
+    superUser: roles.includes("super_user") || roles.includes("super_admin"),
+    organisationId: roles.includes("org_admin") ? orgId : null,
+    manager: roles.includes("branch_manager") && orgId && typeof claims?.branchId === "string"
+      ? { orgId, branchId: claims.branchId }
+      : null,
+  };
+}
+
+export async function requireBranchManager(branchId?: string): Promise<BranchManagerContext & { email?: string }> {
+  const { manager, email } = await requireDashboardContext();
+  if (!manager || (branchId && manager.branchId !== branchId)) redirect("/dashboard");
+  return { ...manager, email };
 }
 
 export async function requireAuth() {

@@ -14,6 +14,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { clearApiReads } from "@/lib/api";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
@@ -36,13 +37,13 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      const result = await response.json().catch(() => null);
-
       if (!response.ok) {
+        const result = await response.json().catch(() => null);
         setError(result?.message ?? "We couldn't sign you in. Check your details and try again.");
         return;
       }
 
+      clearApiReads();
       router.push("/dashboard");
     } catch {
       setError("We couldn't reach the sign-in service. Please try again.");

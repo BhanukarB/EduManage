@@ -27,19 +27,29 @@ export function DashboardSidebar({ items, active, onNavigate, email, compact = f
         sx={{ px: { xs: 0, sm: 1 }, textAlign: { xs: "center", sm: "left" }, mb: 2.5, pb: 2, borderBottom: "1px solid", borderColor: "divider", whiteSpace: "nowrap", overflow: "hidden" }}>
         <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>CLASSMANAGE</Box><Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 900 }}>C</Box>
       </Typography>
-      {compact ? <List disablePadding>
-        {items.map((item) => <ListItemButton key={item.label} onClick={() => onNavigate(item.label)}
-          selected={active === item.label} aria-current={active === item.label ? "page" : undefined}
-          sx={{ borderRadius: "10px", mb: 0.5, py: 1.25, px: { xs: 1, sm: 1.5 }, color: "text.secondary", "&.Mui-selected": { bgcolor: "primary.main", color: "primary.contrastText", "&:hover": { bgcolor: "primary.dark" }, "& .MuiListItemIcon-root": { color: "inherit" } }, "&:hover": { bgcolor: "action.hover" } }}>
-          <ListItemIcon sx={{ minWidth: { xs: 0, sm: 40 }, color: "inherit", justifyContent: "center" }}>{item.icon}</ListItemIcon>
-          <ListItemText primary={item.label} sx={{ display: { xs: "none", sm: "block" } }} />
-        </ListItemButton>)}
-      </List> : <List disablePadding>
-        {items.map((item) => <ListItemButton key={item.label} selected={active === item.label} onClick={() => onNavigate(item.label)} sx={{ borderRadius: "10px", mb: 0.5, "&.Mui-selected": { bgcolor: "primary.main", color: "primary.contrastText", "&:hover": { bgcolor: "primary.dark" }, "& .MuiListItemIcon-root": { color: "inherit" } } }}>
-          <ListItemIcon sx={{ minWidth: { xs: 0, sm: 40 }, color: "inherit", justifyContent: "center" }}>{item.icon}</ListItemIcon>
-          <ListItemText primary={item.label} sx={{ display: { xs: "none", sm: "block" } }} />
-        </ListItemButton>)}
-      </List>}
+      <List disablePadding>
+        {items.map((item) => (
+          <ListItemButton
+            key={item.label}
+            aria-label={item.label}
+            aria-current={active === item.label ? "page" : undefined}
+            onClick={() => onNavigate(item.label)}
+            selected={active === item.label}
+            sx={{
+              borderRadius: "10px", mb: 0.5,
+              ...(compact ? { py: 1.25, px: { xs: 1, sm: 1.5 }, color: "text.secondary", "&:hover": { bgcolor: "action.hover" } } : {}),
+              "&.Mui-selected": {
+                bgcolor: "primary.main", color: "primary.contrastText",
+                "&:hover": { bgcolor: "primary.dark" },
+                "& .MuiListItemIcon-root": { color: "inherit" },
+              },
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: { xs: 0, sm: 40 }, color: "inherit", justifyContent: "center" }}>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.label} sx={{ display: { xs: "none", sm: "block" } }} />
+          </ListItemButton>
+        ))}
+      </List>
       <Box sx={{ flexGrow: 1 }} />
       {email && <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems="center" sx={{ px: { sm: 1 }, py: 1.5, mb: 0.5, overflow: "hidden" }}>
         <Avatar sx={{ width: 36, height: 36, fontSize: 15, bgcolor: "primary.main", color: "common.white", flexShrink: 0 }}>{email.charAt(0).toUpperCase()}</Avatar>

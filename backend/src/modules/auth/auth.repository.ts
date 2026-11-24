@@ -18,17 +18,18 @@ export class AuthRepository {
   }
 
   async getRoles(userId: string): Promise<any> {
-    const [rows, user] = await Promise.all([
+    const [rows, user, staff] = await Promise.all([
       knexConnection('user_roles_table as ur')
         .join('roles_table as r', 'ur.role_id', 'r.id')
         .select('ur.role_id', 'r.role_name')
         .where('ur.user_id', userId),
       knexConnection('users_table').select('org_id').where({ id: userId }).first(),
+      knexConnection('organisation_staff_table').where({ user_id: userId }).first('branch_id'),
     ]);
     const roles = rows.map(row => row.role_id);
     const roleNames = rows.map(row => row.role_name);
     const orgId = user?.org_id ?? null;
-    return { roles, roleNames, orgId };
+    return { roles, roleNames, orgId, branchId: staff?.branch_id ?? null };
   }
 
   async updateRefreshToken(userId: string, refreshToken: string): Promise<void> {

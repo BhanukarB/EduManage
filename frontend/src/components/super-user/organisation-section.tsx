@@ -1,4 +1,5 @@
-import { Alert, Box, Button, Chip, CircularProgress, List, ListItemButton, Paper, Stack, Typography } from "@mui/material";
+import { PanelLoading } from "@/components/common/panel-loading";
+import { Alert, Box, Button, Chip, List, ListItemButton, Paper, Stack, Typography } from "@mui/material";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
 import type { Organisation } from "@/types/domain";
@@ -23,7 +24,7 @@ export function OrganisationSection({ organisations, loading, error, notice, onC
     </Stack>
     {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
     {notice && <Alert severity="success" sx={{ mt: 2 }} onClose={onDismissNotice}>{notice}</Alert>}
-    {loading ? <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box> : organisations.length ? (
+    {loading ? <PanelLoading padding={6} /> : organisations.length ? (
       <List disablePadding sx={{ mt: 2, display: "grid", gap: 1.5 }}>{organisations.map((organisation) => <Paper key={organisation.id} variant="outlined" sx={{ overflow: "hidden" }}>
         <ListItemButton onClick={() => onOpen(organisation)} sx={{ px: 2.5, py: 2, display: "flex", justifyContent: "space-between", gap: 2, alignItems: "flex-start" }}>
           <Box sx={{ minWidth: 0 }}>

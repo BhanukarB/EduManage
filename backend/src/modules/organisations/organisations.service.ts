@@ -29,6 +29,14 @@ export class OrganisationsService {
     return this.organisationsRepository.createOrg(data);
   }
 
+  async getOrganisationOverview(id: string): Promise<OrganisationDto & { branchCount: number; staffCount: number }> {
+    const [organisation, counts] = await Promise.all([
+      this.organisationsRepository.findOrgById(id),
+      this.organisationsRepository.getOrganisationCounts(id),
+    ]);
+    return { ...organisation, ...counts };
+  }
+
   async findOrgById(id: string): Promise<OrganisationDto> {
     return this.organisationsRepository.findOrgById(id);
   }
@@ -62,12 +70,12 @@ export class OrganisationsService {
     return this.organisationsRepository.findBranchListByOrgId(orgId);
   }
 
-  async getBranchSummary(orgId: string, branchId: string) {
-    return this.organisationsRepository.getBranchSummary(orgId, branchId);
+  async getBranchSummary(orgId: string, branchId: string, countsOnly?: boolean) {
+    return this.organisationsRepository.getBranchSummary(orgId, branchId, countsOnly);
   }
 
-  async getOrganisationStaff(orgId: string): Promise<OrganisationStaffDto[]> {
-    return this.organisationsRepository.findOrganisationStaff(orgId);
+  async getOrganisationStaff(orgId: string, branchId?: string): Promise<OrganisationStaffDto[]> {
+    return this.organisationsRepository.findOrganisationStaff(orgId, branchId);
   }
 
   async addOrganisationStaff(data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
@@ -82,6 +90,14 @@ export class OrganisationsService {
     return this.organisationsRepository.createClass(data);
   }
 
+  async createBranchClass(orgId: string, branchId: string, data: Omit<CreateClassDto, 'orgId'>): Promise<ClassDto> {
+    return this.organisationsRepository.createBranchClass(orgId, branchId, data);
+  }
+
+  async updateBranchClass(orgId: string, branchId: string, id: string, data: UpdateClassDto): Promise<ClassDto> {
+    return this.organisationsRepository.updateBranchClass(orgId, branchId, id, data);
+  }
+
   async updateClass(id: string, data: UpdateClassDto): Promise<ClassDto> {
     return this.organisationsRepository.updateClass(id, data);
   }
@@ -90,8 +106,8 @@ export class OrganisationsService {
     return this.organisationsRepository.findClassListByOrgId(orgId);
   }
 
-  async getClassListByBranch(orgId: string, branchId: string): Promise<ClassDto[]> {
-    return this.organisationsRepository.findClassListByBranch(orgId, branchId);
+  async getClassListByBranch(orgId: string, branchId: string, classId?: string): Promise<ClassDto[]> {
+    return this.organisationsRepository.findClassListByBranch(orgId, branchId, classId);
   }
 
   async createClassSection(data: CreateClassSectionDto): Promise<ClassSectionDto> {
@@ -108,8 +124,8 @@ export class OrganisationsService {
     return this.organisationsRepository.updateClassSection(id, orgId, branchId, academicSessionId, data);
   }
 
-  async getClassSectionList(orgId: string, branchId: string, academicSessionId: string): Promise<ClassSectionDto[]> {
-    return this.organisationsRepository.findClassSectionList(orgId, branchId, academicSessionId);
+  async getClassSectionList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassSectionDto[]> {
+    return this.organisationsRepository.findClassSectionList(orgId, branchId, academicSessionId, classId);
   }
 
   async createClassBatch(data: CreateClassBatchDto): Promise<ClassBatchDto> {
@@ -126,8 +142,8 @@ export class OrganisationsService {
     return this.organisationsRepository.updateClassBatch(id, orgId, branchId, academicSessionId, data);
   }
 
-  async getClassBatchList(orgId: string, branchId: string, academicSessionId: string): Promise<ClassBatchDto[]> {
-    return this.organisationsRepository.findClassBatchList(orgId, branchId, academicSessionId);
+  async getClassBatchList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassBatchDto[]> {
+    return this.organisationsRepository.findClassBatchList(orgId, branchId, academicSessionId, classId);
   }
 
   async createOrgAcademicSession(data: CreateOrgAcademicSessionDto): Promise<OrgAcademicSessionDto> {

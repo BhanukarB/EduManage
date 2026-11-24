@@ -1,18 +1,16 @@
 import { Box, Container, Paper, Stack, Typography } from "@mui/material";
-import { ACCESS_COOKIE, getEmailFromToken, getOrgAdminOrgId, isSuperUser, requireAuth } from "@/lib/auth-server";
+import { requireDashboardContext } from "@/lib/auth-server";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SuperUserDashboard } from "@/components/super-user/super-user-dashboard";
 import { ProfileLink } from "@/components/profile-link";
 import { OrganisationAdminDashboard } from "@/components/org-admin/org-admin-dashboard";
+import { BranchDetailsPage } from "@/components/branch/branch-details-page";
 
 export default async function DashboardPage() {
-  const jar = await requireAuth();
-  const accessToken = jar.get(ACCESS_COOKIE)?.value;
-  const email = getEmailFromToken(accessToken);
-
-  if (isSuperUser(accessToken)) return <SuperUserDashboard email={email} />;
-  const organisationId = getOrgAdminOrgId(accessToken);
-  if (organisationId) return <OrganisationAdminDashboard email={email} orgId={organisationId} />;
+  const { email, superUser, manager, organisationId } = await requireDashboardContext();
+  if (superUser) return <SuperUserDashboard email={email} />;
+  if (manager) return <BranchDetailsPage {...manager} email={email} branchManager />;
+  if (organisationId) return <OrganisationAdminDashboard key={organisationId} email={email} orgId={organisationId} />;
 
   return (
     <Box component="main" sx={{ minHeight: "100vh", py: 8 }}>

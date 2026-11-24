@@ -1,7 +1,6 @@
 export enum OrganisationType {
-    Individual = 0,
-    HOUSING = 1,
-    BUSINESS = 2,
+    SCHOOL = 1,
+    COACHING = 2,
 }
 
 export enum VerificationStatus {

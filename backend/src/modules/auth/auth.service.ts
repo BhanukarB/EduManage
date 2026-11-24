@@ -26,7 +26,7 @@ export class AuthService {
     //   throw new UnauthorizedException('Invalid credentials');
     // }
     const userRoleData = await this.authRepository.getRoles(user.id);
-    const payload = { uid: user.id, email: user.email, role_ids: userRoleData.roles, roles: userRoleData.roleNames, orgId: userRoleData.orgId };
+    const payload = { uid: user.id, email: user.email, role_ids: userRoleData.roles, roles: userRoleData.roleNames, orgId: userRoleData.orgId, branchId: userRoleData.branchId };
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
     const refreshToken = this.jwtService.sign(
       { uid: user.id, email: user.email },

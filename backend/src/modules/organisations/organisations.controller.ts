@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, ParseBoolPipe, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -6,6 +6,8 @@ import { Permissions } from '../../utils/decorators/permission.decorator';
 import {
   CreateBranchAPI,
   CreateClassAPI,
+  CreateBranchClassAPI,
+  UpdateBranchClassAPI,
   CreateClassBatchAPI,
   CreateClassSectionAPI,
   CreateClassSubjectMappingAPI,
@@ -80,6 +82,19 @@ export class OrganisationsController {
     }
   }
 
+  private assertBranchAccess(req: any, orgId: string, branchId: string): void {
+    this.assertOrganisationAccess(req, orgId);
+    if (req.user?.roles?.includes('branch_manager') && req.user.branchId !== branchId) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
+  }
+
+  private assertNotBranchManager(req: any): void {
+    if (req.user?.roles?.includes('branch_manager')) {
+      throw new ForbiddenException('This action is only available to organisation administrators');
+    }
+  }
+
   // Organisations
   @Post(CreateOrganisationAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
@@ -95,8 +110,16 @@ export class OrganisationsController {
   @Permissions(...GetOrganisationByIdAPI.permissions)
   @ApiOperation({ summary: 'Get an organisation by UUID' })
   @ApiResponse({ status: 200, type: OrganisationDto })
-  findOrgById(@Req() req: any, @Param('id', ParseUUIDPipe) id: string): Promise<OrganisationDto> {
+  findOrgById(
+    @Req() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('includeCounts', new ParseBoolPipe({ optional: true })) includeCounts?: boolean,
+  ): Promise<OrganisationDto> {
     this.assertOrganisationAccess(req, id);
+    if (includeCounts) {
+      this.assertNotBranchManager(req);
+      return this.organisationsService.getOrganisationOverview(id);
+    }
     return this.organisationsService.findOrgById(id);
   }
 
@@ -153,9 +176,11 @@ export class OrganisationsController {
   @ApiOperation({ summary: 'Update a branch' })
   @ApiResponse({ status: 200, type: BranchDto })
   updateBranch(
+    @Req() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: UpdateBranchDto,
   ): Promise<BranchDto> {
+    this.assertNotBranchManager(req);
     return this.organisationsService.updateBranch(id, data);
   }
 
@@ -164,7 +189,10 @@ export class OrganisationsController {
   @Permissions(...GetBranchByIdAPI.permissions)
   @ApiOperation({ summary: 'Get a branch by UUID' })
   @ApiResponse({ status: 200, type: BranchDto })
-  getBranchById(@Param('id', ParseUUIDPipe) id: string): Promise<BranchDto> {
+  getBranchById(@Req() req: any, @Param('id', ParseUUIDPipe) id: string): Promise<BranchDto> {
+    if (req.user?.roles?.includes('branch_manager') && req.user.branchId !== id) {
+      throw new ForbiddenException('You do not have access to this branch');
+    }
     return this.organisationsService.getBranchById(id);
   }
 
@@ -175,13 +203,19 @@ export class OrganisationsController {
   @ApiResponse({ status: 200, type: [BranchDto] })
   getBranchListByOrgId(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string): Promise<BranchDto[]> {
     this.assertOrganisationAccess(req, orgId);
+    if (req.user?.roles?.includes('branch_manager')) return this.organisationsService.getBranchById(req.user.branchId).then((branch) => [branch]);
     return this.organisationsService.getBranchListByOrgId(orgId);
   }
 
   @Get('/:orgId/branches/:branchId/summary')
-  getBranchSummary(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string, @Param('branchId', ParseUUIDPipe) branchId: string) {
-    this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.getBranchSummary(orgId, branchId);
+  getBranchSummary(
+    @Req() req: any,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Query('countsOnly', new ParseBoolPipe({ optional: true })) countsOnly?: boolean,
+  ) {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.getBranchSummary(orgId, branchId, countsOnly);
   }
 
   @Get(GetOrganisationStaffAPI.path)
@@ -189,9 +223,14 @@ export class OrganisationsController {
   @Permissions(...GetOrganisationStaffAPI.permissions)
   @ApiOperation({ summary: 'List staff for an organisation' })
   @ApiResponse({ status: 200, type: [OrganisationStaffDto] })
-  getOrganisationStaff(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string): Promise<OrganisationStaffDto[]> {
+  getOrganisationStaff(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Query('branchId', new ParseUUIDPipe({ optional: true })) branchId?: string,
+  ): Promise<OrganisationStaffDto[]> {
     this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.getOrganisationStaff(orgId);
+    if (branchId) this.assertBranchAccess(req, orgId, branchId);
+    const scopedBranch = req.user?.roles?.includes('branch_manager') ? req.user.branchId : branchId;
+    if (req.user?.roles?.includes('branch_manager') && !scopedBranch) return Promise.resolve([]);
+    return this.organisationsService.getOrganisationStaff(orgId, scopedBranch);
   }
 
   @Put(UpdateOrganisationStaffAPI.path)
@@ -199,11 +238,15 @@ export class OrganisationsController {
   @Permissions(...UpdateOrganisationStaffAPI.permissions)
   @ApiOperation({ summary: 'Update a staff member in an organisation' })
   @ApiResponse({ status: 200, type: OrganisationStaffDto })
-  updateOrganisationStaff(
+  async updateOrganisationStaff(
     @Req() req: any,
     @Body() data: UpdateOrganisationStaffDto,
   ): Promise<OrganisationStaffDto> {
     this.assertOrganisationAccess(req, data.orgId);
+    if (req.user?.roles?.includes('branch_manager')) {
+      const existing = await this.organisationsService.getOrganisationStaff(data.orgId);
+      if (!existing.some((person) => person.id === data.staffId && person.branchId === req.user.branchId) || (data.branchId && data.branchId !== req.user.branchId)) throw new ForbiddenException('You do not have access to this staff member or branch');
+    }
     return this.organisationsService.updateOrganisationStaff(data.orgId, data.staffId, data);
   }
 
@@ -214,10 +257,36 @@ export class OrganisationsController {
   @ApiResponse({ status: 201, type: OrganisationStaffDto })
   addOrganisationStaff(@Req() req: any, @Body() data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
     this.assertOrganisationAccess(req, data.orgId);
+    this.assertBranchAccess(req, data.orgId, data.branchId);
     return this.organisationsService.addOrganisationStaff(data);
   }
 
   // classes
+  @Post(CreateBranchClassAPI.path)
+  @Permissions(...CreateBranchClassAPI.permissions)
+  createBranchClass(
+    @Req() req: any,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Body() data: CreateClassRequestDto,
+  ): Promise<ClassDto> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.createBranchClass(orgId, branchId, data);
+  }
+
+  @Put(UpdateBranchClassAPI.path)
+  @Permissions(...UpdateBranchClassAPI.permissions)
+  updateBranchClass(
+    @Req() req: any,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() data: UpdateClassDto,
+  ): Promise<ClassDto> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.updateBranchClass(orgId, branchId, id, data);
+  }
+
   @Post(CreateClassAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...CreateClassAPI.permissions)
@@ -228,6 +297,7 @@ export class OrganisationsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() data: CreateClassRequestDto,
   ): Promise<ClassDto> {
+    this.assertNotBranchManager(req);
     this.assertOrganisationAccess(req, orgId);
     return this.organisationsService.createClass({ ...data, orgId });
   }
@@ -238,9 +308,11 @@ export class OrganisationsController {
   @ApiOperation({ summary: 'Update a class' })
   @ApiResponse({ status: 200, type: ClassDto })
   updateClass(
+    @Req() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: UpdateClassDto,
   ): Promise<ClassDto> {
+    this.assertNotBranchManager(req);
     return this.organisationsService.updateClass(id, data);
   }
 
@@ -251,6 +323,7 @@ export class OrganisationsController {
   @ApiResponse({ status: 200, type: [ClassDto] })
   getClassListByOrgId(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string): Promise<ClassDto[]> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertNotBranchManager(req);
     return this.organisationsService.getClassListByOrgId(orgId);
   }
 
@@ -263,9 +336,10 @@ export class OrganisationsController {
     @Req() req: any,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Query('classId', new ParseUUIDPipe({ optional: true })) classId?: string,
   ): Promise<ClassDto[]> {
-    this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.getClassListByBranch(orgId, branchId);
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.getClassListByBranch(orgId, branchId, classId);
   }
 
   //sections
@@ -282,6 +356,7 @@ export class OrganisationsController {
     @Body() data: CreateClassSectionRequestDto,
   ): Promise<ClassSectionDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.createClassSection({ ...data, orgId, branchId, academicSessionId });
   }
 
@@ -299,6 +374,7 @@ export class OrganisationsController {
     @Body() data: UpdateClassSectionDto,
   ): Promise<ClassSectionDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.updateClassSection(id, orgId, branchId, academicSessionId, data);
   }
 
@@ -312,9 +388,11 @@ export class OrganisationsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
+    @Query('classId', new ParseUUIDPipe({ optional: true })) classId?: string,
   ): Promise<ClassSectionDto[]> {
     this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.getClassSectionList(orgId, branchId, academicSessionId);
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.getClassSectionList(orgId, branchId, academicSessionId, classId);
   }
 
   // batches
@@ -331,6 +409,7 @@ export class OrganisationsController {
     @Body() data: CreateClassBatchRequestDto,
   ): Promise<ClassBatchDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.createClassBatch({ ...data, orgId, branchId, academicSessionId });
   }
 
@@ -348,6 +427,7 @@ export class OrganisationsController {
     @Body() data: UpdateClassBatchDto,
   ): Promise<ClassBatchDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.updateClassBatch(id, orgId, branchId, academicSessionId, data);
   }
 
@@ -361,9 +441,11 @@ export class OrganisationsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
+    @Query('classId', new ParseUUIDPipe({ optional: true })) classId?: string,
   ): Promise<ClassBatchDto[]> {
     this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.getClassBatchList(orgId, branchId, academicSessionId);
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.getClassBatchList(orgId, branchId, academicSessionId, classId);
   }
 
   // academic sessions

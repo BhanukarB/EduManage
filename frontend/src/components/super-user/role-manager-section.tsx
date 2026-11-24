@@ -1,7 +1,8 @@
 "use client";
 
+import { PanelLoading } from "@/components/common/panel-loading";
 import { useMemo, useState } from "react";
-import { Alert, Box, Button, Chip, CircularProgress, Divider, List, ListItemButton, ListItemText, Paper, Tab, Tabs, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Divider, List, ListItemButton, ListItemText, Paper, Tab, Tabs, TextField, Typography } from "@mui/material";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import ChevronRightOutlined from "@mui/icons-material/ChevronRightOutlined";
 import type { Permission, Role } from "@/types/domain";
@@ -35,7 +36,7 @@ export function RoleManagerSection({ roles, permissions, loading, error, notice,
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={onDismissError}>{error}</Alert>}
       {notice && <Alert severity="success" sx={{ mb: 2 }} onClose={onDismissNotice}>{notice}</Alert>}
-      {loading ? <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box> : activeTab === 0 ? (
+      {loading ? <PanelLoading padding={6} /> : activeTab === 0 ? (
         roles.length ? <>
           <TextField size="small" fullWidth value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search roles…" inputProps={{ "aria-label": "Search roles" }} sx={{ mb: 2 }} />
           {filteredRoles.length ? <List disablePadding>{filteredRoles.map((role) => <ListItemButton key={role.id} onClick={() => onOpenRole(role)} sx={{ px: 2, py: 1.5, border: "1px solid", borderColor: "divider", borderRadius: "12px", mb: 1 }}>
