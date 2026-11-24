@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, Min, Max, IsDateString, IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class AddStudentToOrgDto {
   @ApiProperty({ example: 'Asha' })
@@ -25,6 +26,18 @@ export class AddStudentToOrgDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  guardianName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  guardianContact?: string;
 
   @ApiPropertyOptional({ type: Object })
   @IsOptional()
@@ -69,4 +82,47 @@ export class AddStudentToOrgResultDto {
 
   @ApiProperty({ type: Object })
   student: Record<string, unknown>;
+}
+
+export enum StudentGroupType {
+  Sections = 'sections',
+  Batches = 'batches',
+}
+
+export interface RosterGuardian {
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  phoneNumber: string | null;
+}
+
+export interface RosterStudent extends RosterGuardian {
+  id: string;
+  enrollmentNumber: string;
+  emailId: string | null;
+  guardians: RosterGuardian[];
+}
+
+export class StudentRosterQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize = 10;
+}
+
+export interface StudentRosterPage {
+  group: { name: string; classId: string; className: string; academicSessionId: string };
+  items: RosterStudent[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

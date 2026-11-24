@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { OrganisationsRepository } from './organisations.repository';
 import { RbacService } from '../rbac/rbac.service';
@@ -15,7 +15,7 @@ import {
 } from './dtos/class-subject-mapping.dto';
 import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
 import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
-import { AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { StudentRosterQueryDto, StudentRosterPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
 
 @Injectable()
@@ -215,7 +215,17 @@ export class OrganisationsService {
     return this.organisationsRepository.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
   }
 
-  async addStudentToOrg(orgId: string, data: AddStudentToOrgDto): Promise<AddStudentToOrgResultDto> {
+  getStudentRoster(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentRosterQueryDto): Promise<StudentRosterPage> {
+    return this.organisationsRepository.getStudentRoster(orgId, branchId, groupType, groupId, query);
+  }
+
+  async addStudentToOrg(orgId: string, data: AddStudentToOrgDto, requireGroup = false): Promise<AddStudentToOrgResultDto> {
+    if (requireGroup && !data.sectionId && !data.batchId) {
+      throw new BadRequestException('Choose a section or batch for this student.');
+    }
+    if (Boolean(data.guardianName?.trim()) !== Boolean(data.guardianContact?.trim())) {
+      throw new BadRequestException('Provide both guardian name and guardian contact.');
+    }
     return this.organisationsRepository.addStudentToOrg(orgId, data);
   }
 }

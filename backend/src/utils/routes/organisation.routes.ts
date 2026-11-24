@@ -491,3 +491,14 @@ export const AddStudentToOrgAPI = {
 };
 
 
+
+const rosterPath = '/:orgId/branches/:branchId/:groupType/:groupId/students';
+export const GetStudentRosterAPI = {
+  path: rosterPath,
+  endpoint: [`${Service.ORGANISATION_API_PREFIX}${rosterPath.slice(1)}`, `${Service.ORGANISATION_API_PREFIX}v1${rosterPath}`],
+  method: RequestMethod.GET,
+  argument: ['orgId', 'branchId', 'groupType', 'groupId'],
+  permissions: [PermissionEnum.VIEW_STUDENT_ROSTER],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/branches/<branchId>/sections/<groupId>/students',
+};

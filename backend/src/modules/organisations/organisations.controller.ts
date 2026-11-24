@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseBoolPipe, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { ParseEnumPipe, ValidationPipe, Body, Controller, ForbiddenException, Get, Param, ParseBoolPipe, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -16,6 +16,7 @@ import {
   CreateOrgAcademicSessionAPI,
   CreateOrganisationAPI,
   AddStudentToOrgAPI,
+  GetStudentRosterAPI,
   AddOrganisationStaffAPI,
   CreateSubjectAPI,
   GetBranchByIdAPI,
@@ -66,7 +67,7 @@ import {
 import {
   BatchSubjectMappingDto, CreateBatchSubjectMappingRequestDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
-import { AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { StudentRosterQueryDto, StudentRosterPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { OrganisationsService } from './organisations.service';
 
 @ApiTags('organisations')
@@ -656,17 +657,31 @@ export class OrganisationsController {
     return this.organisationsService.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
   }
 
+  @Get(GetStudentRosterAPI.path)
+  @Permissions(...GetStudentRosterAPI.permissions)
+  getStudentRoster(
+    @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('groupType', new ParseEnumPipe(StudentGroupType)) groupType: StudentGroupType,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: StudentRosterQueryDto,
+  ): Promise<StudentRosterPage> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.getStudentRoster(orgId, branchId, groupType, groupId, query);
+  }
+
   @Post(AddStudentToOrgAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...AddStudentToOrgAPI.permissions)
   @ApiOperation({ summary: 'Create a user and enrol them as a student in an organisation' })
   @ApiResponse({ status: 201, type: AddStudentToOrgResultDto })
   addStudentToOrg(
-    @Req() req: any,
+    @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
     @Param('orgId', ParseUUIDPipe) orgId: string,
-    @Body() data: AddStudentToOrgDto,
+    @Body(new ValidationPipe({ whitelist: true })) data: AddStudentToOrgDto,
   ): Promise<AddStudentToOrgResultDto> {
-    this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.addStudentToOrg(orgId, data);
+    this.assertBranchAccess(req, orgId, data.branchId);
+    return this.organisationsService.addStudentToOrg(orgId, data, req.user.roles.includes('branch_manager'));
   }
 }

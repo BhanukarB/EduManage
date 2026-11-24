@@ -23,7 +23,7 @@ import {
 import {
     BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
-import { AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { StudentRosterQueryDto, StudentRosterPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
 import { RoleType } from '../../utils/enums/roleType';
 
@@ -70,6 +70,40 @@ const subjectColumns = [
 
 @Injectable()
 export class OrganisationsRepository {
+    async getStudentRoster(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentRosterQueryDto): Promise<StudentRosterPage> {
+        const section = groupType === StudentGroupType.Sections;
+        const groupRow = await knexConnection(section ? 'sections_table as g' : 'batches_table as g')
+            .join('classes as c', 'c.id', 'g.class_id')
+            .where({ 'g.id': groupId, 'g.branch_id': branchId, 'c.org_id': orgId })
+            .first('g.class_id as classId', 'c.class_name as className', 'g.academic_session_id as academicSessionId',
+                ...(section ? ['g.section_code as code'] : ['g.batch_code as code', 'g.batch_name as batchName']));
+        if (!groupRow) throw new NotFoundException('Class group not found in this branch');
+        const { code, batchName, ...group } = groupRow;
+        const roster = knexConnection('organisation_student_table as s')
+            .join('users_table as u', 'u.id', 's.user_id')
+            .where({ 's.org_id': orgId, 's.branch_id': branchId, [section ? 's.section_id' : 's.batch_id']: groupId, 's.status': 1 });
+        const count = await roster.clone().count('* as total').first();
+        const total = Number(count?.total ?? 0);
+        const { pageSize } = query;
+        const page = Math.min(query.page, Math.max(1, Math.ceil(total / pageSize)));
+        const students = await roster.orderBy(['u.first_name', 'u.last_name', 's.enrollment_number', 's.id'])
+            .limit(pageSize).offset((page - 1) * pageSize)
+            .select('s.id', 's.user_id as userId', 's.enrollment_number as enrollmentNumber', 'u.first_name as firstName',
+                'u.middle_name as middleName', 'u.last_name as lastName', 'u.email_id as emailId', 'u.phone_number as phoneNumber');
+        const guardians = await knexConnection('student_guardian_table as link')
+            .join('users_table as g', 'g.id', 'link.guardian_user_id')
+            .whereIn('link.student_user_id', students.map(student => student.userId))
+            .orderBy(['g.first_name', 'g.id'])
+            .select('link.student_user_id as userId', 'g.first_name as firstName', 'g.middle_name as middleName',
+                'g.last_name as lastName', 'g.phone_number as phoneNumber');
+        const items = students.map(({ userId, ...student }) => ({
+            ...student,
+            guardians: guardians.filter(contact => contact.userId === userId)
+                .map(({ firstName, middleName, lastName, phoneNumber }) => ({ firstName, middleName, lastName, phoneNumber })),
+        }));
+        return { group: { ...group, name: section ? `Section ${code}` : batchName || code }, items, total, page, pageSize };
+    }
+
     async addStudentToOrg(orgId: string, data: AddStudentToOrgDto): Promise<AddStudentToOrgResultDto> {
         if (data.sectionId && data.batchId) {
             throw new BadRequestException('A student cannot be enrolled in both a section and a batch');
@@ -135,7 +169,18 @@ export class OrganisationsRepository {
                 'created_at as createdAt', 'updated_at as updatedAt',
             ]);
 
-            const [student] = await trx('organisation_student_table').insert({
+            const role = await trx('roles_table').where({ role_name: 'student' }).first('id');
+            if (!role) throw new InternalServerErrorException('Student role is missing');
+            await trx('user_roles_table').insert({ id: randomUUID(), user_id: userId, role_id: role.id, org_id: orgId });
+            if (data.guardianName?.trim() && data.guardianContact?.trim()) {
+                const guardianId = randomUUID();
+                const [firstName, ...lastName] = data.guardianName.trim().split(/\s+/);
+                await trx('users_table').insert({ id: guardianId, first_name: firstName, last_name: lastName.join(' '),
+                    org_id: orgId, phone_number: data.guardianContact.trim() });
+                await trx('student_guardian_table').insert({ id: randomUUID(), student_user_id: userId,
+                    guardian_user_id: guardianId, relation_type: 'Guardian' });
+            }
+            const placement = {
                 id: studentId,
                 academic_session_id: data.academicSessionId,
                 org_id: orgId,
@@ -144,14 +189,18 @@ export class OrganisationsRepository {
                 class_id: data.classId,
                 section_id: data.sectionId ?? null,
                 batch_id: data.batchId ?? null,
-                enrollment_number: data.enrollmentNumber,
                 enrollment_date: data.enrollmentDate,
+            };
+            const [student] = await trx('organisation_student_table').insert({
+                ...placement,
+                enrollment_number: data.enrollmentNumber,
             }).returning([
                 'id', 'academic_session_id as academicSessionId', 'org_id as orgId',
                 'branch_id as branchId', 'user_id as userId', 'class_id as classId',
                 'section_id as sectionId', 'batch_id as batchId', 'enrollment_number as enrollmentNumber',
                 'enrollment_date as enrollmentDate', 'status', 'created_at as createdAt', 'updated_at as updatedAt',
             ]);
+            await trx('student_enrollment').insert({ ...placement, is_active: true });
             await trx.commit();
             return { user, student };
         } catch (error) {
