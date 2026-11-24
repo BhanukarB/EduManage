@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards, ValidationPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { GetLoggedInUserDetailsAPI, UpdateOwnPhoneAPI } from '../../utils/routes/users.routes';
+import { Permissions as RequirePermissions } from '../../utils/decorators/permission.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUserDto, UpdateOwnPhoneDto } from './dtos/user.dto';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CreateUserDto, UpdateUserDto, UserDto } from './dtos/user.dto';
 import { UsersService } from './users.service';
@@ -25,11 +29,22 @@ export class UsersController {
     return this.usersService.findAll(req.user.uid, req.user.orgId);
   }
 
-  @Get('me')
+  @Get(GetLoggedInUserDetailsAPI.path)
   @ApiOperation({ summary: 'Get the logged-in user profile' })
-  @ApiResponse({ status: 200, type: UserDto })
-  findCurrentUser(@Req() req: any): Promise<UserDto> {
+  @ApiResponse({ status: 200, type: CurrentUserDto })
+  findCurrentUser(@Req() req: { user: { uid: string } }): Promise<CurrentUserDto> {
     return this.usersService.findCurrentUser(req.user.uid);
+  }
+
+  @Patch(UpdateOwnPhoneAPI.path)
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions(...UpdateOwnPhoneAPI.permissions)
+  @ApiOperation({ summary: 'Update the logged-in user’s phone number' })
+  updateOwnPhone(
+    @Req() req: { user: { uid: string } },
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })) data: UpdateOwnPhoneDto,
+  ): Promise<UpdateOwnPhoneDto> {
+    return this.usersService.updateOwnPhone(req.user.uid, data.phoneNumber);
   }
 
   @Get(':id')

@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import type { ProfileGuardian } from './dtos/user.dto';
 import * as bcrypt from 'bcrypt';
 import knexConnection from '../../db/connector/knex';
 import { CreateUserDto, UpdateUserDto, UserDto } from './dtos/user.dto';
@@ -56,6 +57,36 @@ export class UsersRepository {
     const user = await query.select(userColumns).first();
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  async organisationName(orgId: string): Promise<string | null> {
+    const org = await knexConnection('organisations').where({ id: orgId }).first('name');
+    return org?.name ?? null;
+  }
+
+  async membership(userId: string, orgId: string, student: boolean): Promise<{
+    branchName: string | null;
+    joiningDate: Date;
+  } | undefined> {
+    const table = student ? 'organisation_student_table' : 'organisation_staff_table';
+    const date = student ? 'enrollment_date' : 'joining_date';
+    return await knexConnection(`${table} as m`)
+      .leftJoin('branches as b', function () {
+        this.on('b.id', 'm.branch_id').andOn('b.org_id', 'm.org_id');
+      })
+      .where({ 'm.user_id': userId, 'm.org_id': orgId, 'm.status': 1 })
+      .orderBy(`m.${date}`, 'desc')
+      .orderBy('m.id')
+      .first('b.branch_name as branchName', `m.${date} as joiningDate`);
+  }
+
+  async guardians(userId: string): Promise<ProfileGuardian[]> {
+    return await knexConnection('student_guardian_table as g')
+      .join('users_table as u', 'u.id', 'g.guardian_user_id')
+      .where('g.student_user_id', userId)
+      .orderBy('u.first_name')
+      .select('u.first_name as firstName', 'u.middle_name as middleName',
+        'u.last_name as lastName', 'g.relation_type as relation');
   }
 
   async update(id: string, userData: UpdateUserDto, orgId?: string): Promise<UserDto> {

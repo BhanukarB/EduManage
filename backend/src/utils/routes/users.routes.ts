@@ -42,6 +42,14 @@ export const GetLoggedInUserDetailsAPI = {
     sample: '/me',
 }
 
+export const UpdateOwnPhoneAPI = {
+  path: '/me',
+  endpoint: ['/users/me'],
+  method: RequestMethod.PATCH,
+  permissions: [PermissionEnum.UPDATE_OWN_PHONE],
+  service: Service.USER_SERVICE,
+};
+
 export const GetUserByIdAPI = {
     path: '/get/:id',
     endpoint: [

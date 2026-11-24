@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Box, Stack } from "@mui/material";
-import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
-import AdminPanelSettingsOutlined from "@mui/icons-material/AdminPanelSettingsOutlined";
 import { ProfileLink } from "@/components/profile-link";
-import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 import type { Organisation, Permission, Role } from "@/types/domain";
 import { RoleManagerSection } from "@/components/super-user/role-manager-section";
@@ -17,13 +14,7 @@ import { PageHeader } from "@/components/common/page-header";
 
 type RolePermissions = { roleId: string; role: string; permissions: Permission[] };
 
-const sections = [
-  { label: "Organisations", icon: <ApartmentOutlined /> },
-  { label: "Role Manager", icon: <AdminPanelSettingsOutlined /> },
-];
-
-export function SuperUserDashboard({ email }: { email?: string }) {
-  const [activeSection, setActiveSection] = useState("Organisations");
+export function SuperUserDashboard({ email, activeSection }: { email?: string; activeSection: "Organisations" | "Role Manager" }) {
   const [activeRoleTab, setActiveRoleTab] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -262,7 +253,6 @@ export function SuperUserDashboard({ email }: { email?: string }) {
 
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", bgcolor: "background.default" }}>
-      <DashboardSidebar items={sections} active={activeSection} onNavigate={(section) => { setError(null); setNotice(null); setActiveSection(section); }} email={email} />
 
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, maxWidth: 1360, mx: "auto", p: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>

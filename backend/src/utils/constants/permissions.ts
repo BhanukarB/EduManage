@@ -3,6 +3,7 @@ export enum PermissionEnum {
   // User
   GET_USER_BY_ID = 'get_user_by_id',
   GET_LOGGED_IN_USER = 'get_logged_in_user',
+  UPDATE_OWN_PHONE = 'update_own_phone',
   UPDATE_USER = 'update_user',
   DELETE_USER = 'delete_user',
   CREATE_API_KEY = 'create_api_key',

@@ -15,12 +15,14 @@ import { StaffListRow } from "@/components/common/staff-list-row";
 import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
 import { StatusChip } from "@/components/common/status-chip";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchIdentity, readBranchSummary, type BranchSummary } from "./branch-data";
 
 type BranchOption = Pick<Branch, "id" | "branchName">;
 export function BranchDetailsPage({ orgId, branchId, email, branchManager = false, initialStaffView = false }: { orgId: string; branchId: string; email?: string; branchManager?: boolean; initialStaffView?: boolean }) {
+  const router = useRouter();
   const [branchName, setBranchName] = useState<string | null>(null);
   const [summary, setSummary] = useState<BranchSummary | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -114,12 +116,11 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
     finally { setSaving(false); }
   };
 
-  return <BranchWorkspace active={staffView ? "Staff" : "Dashboard"} email={email} maxWidth={1200}
-    showSidebar={branchManager} onDashboard={() => setStaffView(false)}>
+  return <BranchWorkspace maxWidth={1200}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Breadcrumbs aria-label="Breadcrumb">
           <MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink>
-          <MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Branches</MuiLink>
+          {!branchManager && <MuiLink component={Link} href="/branches" underline="hover" color="inherit">Branches</MuiLink>}
           {branchName && <Typography color="text.primary">{branchName}</Typography>}
         </Breadcrumbs>
         <ProfileLink email={email} />
@@ -130,7 +131,7 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
       {(!staffView && summary) && <PageHeader title={summary.branch.branchName} subtitle={`Branch code: ${summary.branch.branchCode}`} action={<StatusChip status={summary.branch.status} />} />}
       {(staffView || summary) && <>
         {!staffView && summary ? <><Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
-          <StatCard icon={<GroupsOutlined />} label="Staff" value={summary.staffCount} onClick={() => setStaffView(true)} />
+          <StatCard icon={<GroupsOutlined />} label="Staff" value={summary.staffCount} onClick={() => branchManager ? router.push("/staff") : setStaffView(true)} />
           <StatCard icon={<SchoolOutlined />} label="Students" value={summary.studentCount} />
           <StatCard icon={<ApartmentOutlined />} label="Classes" value={(summary.classCount ?? summary.classes?.length ?? 0)} />
         </Stack>
@@ -144,7 +145,7 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
         </Paper>}
         </> : <>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, mb: 2 }}>
-            <Button onClick={() => setStaffView(false)}>Back to branch</Button>
+            <Button onClick={() => branchManager ? router.push("/dashboard") : setStaffView(false)}>Back to branch</Button>
             <Button variant="contained" disabled={staffLoading || !branchName} onClick={() => void openAddStaff()}>Add staff</Button>
           </Stack>
           <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: "12px" }}>

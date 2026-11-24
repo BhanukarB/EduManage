@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import type { ReactElement } from "react";
 import { Box, Container, Paper, Stack, Typography } from "@mui/material";
 import { requireDashboardContext } from "@/lib/auth-server";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -6,11 +8,16 @@ import { ProfileLink } from "@/components/profile-link";
 import { OrganisationAdminDashboard } from "@/components/org-admin/org-admin-dashboard";
 import { BranchDetailsPage } from "@/components/branch/branch-details-page";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ section }: { section: "Dashboard" | "Branches" | "Members" | "Organisations" | "Role Manager" }): Promise<ReactElement> {
   const { email, superUser, manager, organisationId } = await requireDashboardContext();
-  if (superUser) return <SuperUserDashboard email={email} />;
+  if (section === "Role Manager" || section === "Organisations") {
+    if (!superUser) redirect("/dashboard");
+    return <SuperUserDashboard email={email} activeSection={section} />;
+  }
+  if (section !== "Dashboard" && (superUser || manager || !organisationId)) redirect("/dashboard");
+  if (superUser) return <SuperUserDashboard email={email} activeSection="Organisations" />;
   if (manager) return <BranchDetailsPage {...manager} email={email} branchManager />;
-  if (organisationId) return <OrganisationAdminDashboard key={organisationId} email={email} orgId={organisationId} />;
+  if (organisationId) return <OrganisationAdminDashboard key={organisationId} email={email} orgId={organisationId} section={section} />;
 
   return (
     <Box component="main" sx={{ minHeight: "100vh", py: 8 }}>

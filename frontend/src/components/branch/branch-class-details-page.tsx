@@ -81,9 +81,9 @@ export function BranchClassDetailsPage({ orgId, branchId, classId, email }: { or
 
   const isSchool = branch?.type === 1;
   const relationName = isSchool ? "Sections" : "Batches";
-  return <BranchWorkspace active="Classes" email={email}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Breadcrumbs aria-label="Breadcrumb"><MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink><MuiLink component={Link} href="/dashboard/branch/classes" underline="hover" color="inherit">Classes</MuiLink><Typography color="text.primary">{classItem?.className ?? "Class details"}</Typography></Breadcrumbs><ProfileLink email={email} /></Stack>
-      <Button component={Link} href="/dashboard/branch/classes" startIcon={<ArrowBack />} sx={{ mb: 2 }}>
+  return <BranchWorkspace>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Breadcrumbs aria-label="Breadcrumb"><MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink><MuiLink component={Link} href="/classes" underline="hover" color="inherit">Classes</MuiLink><Typography color="text.primary">{classItem?.className ?? "Class details"}</Typography></Breadcrumbs><ProfileLink email={email} /></Stack>
+      <Button component={Link} href="/classes" startIcon={<ArrowBack />} sx={{ mb: 2 }}>
         Back to Classes
       </Button>
       {error && <Alert severity="error">{error}</Alert>}

@@ -8,7 +8,8 @@ export default async function BranchPage({ params, searchParams }: { params: Pro
   ]);
   if (manager) {
     if (manager.branchId !== branchId) redirect("/dashboard");
-    redirect(query.view === "staff" ? "/dashboard/branch/staff" : "/dashboard");
+    if (query.view === "staff") redirect("/staff");
+    return <BranchDetailsPage {...manager} email={email} branchManager />;
   }
   if (!organisationId) redirect("/dashboard");
   return <BranchDetailsPage key={branchId} orgId={organisationId} branchId={branchId} email={email} />;

@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import { RbacService } from 'src/modules/rbac/rbac.service';
+import { PermissionEnum } from '../../utils/constants/permissions';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 import knexConnection from '../../db/connector/knex';
@@ -69,7 +70,8 @@ export class AuthGuard implements CanActivate {
         decoded.uid,
         decoded.orgId,
       );
-      request.permissions = userPermissions;
+      // Every authenticated account can maintain its own contact number.
+      request.permissions = [...userPermissions, PermissionEnum.UPDATE_OWN_PHONE];
 
       return true;
     } catch (error) {

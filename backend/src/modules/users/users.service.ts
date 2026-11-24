@@ -1,4 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { RoleType } from '../../utils/enums/roleType';
+import { CurrentUserDto, UpdateOwnPhoneDto } from './dtos/user.dto';
 import { RbacService } from '../rbac/rbac.service';
 import { CreateUserDto, UpdateUserDto, UserDto } from './dtos/user.dto';
 import { UsersRepository } from './users.repository';
@@ -21,8 +24,30 @@ export class UsersService {
     return this.usersRepository.findAll(orgId);
   }
 
-  async findCurrentUser(userId: string): Promise<UserDto> {
-    return this.usersRepository.findById(userId);
+  async findCurrentUser(userId: string): Promise<CurrentUserDto> {
+    const user = await this.usersRepository.findById(userId);
+    const roles = await this.rbacService.getUserRoles(userId, user.orgId ?? undefined);
+    const student = roles.some(role => role.name === 'student');
+    const branchLevel = roles.some(role => role.roleType === RoleType.BRANCH_LEVEL);
+    const [organisationName, membership, guardians] = await Promise.all([
+      user.orgId ? this.usersRepository.organisationName(user.orgId) : null,
+      user.orgId ? this.usersRepository.membership(userId, user.orgId, student) : null,
+      student ? this.usersRepository.guardians(userId) : undefined,
+    ]);
+    const date = membership?.joiningDate;
+    // PostgreSQL DATE values arrive at local midnight. Preserve the calendar date.
+    const joiningDate = date ? [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0')].join('-') : null;
+
+    return plainToInstance(CurrentUserDto, {
+      ...user, organisationName, joiningDate, guardians,
+      branchName: branchLevel ? membership?.branchName ?? null : undefined,
+    });
+  }
+
+  async updateOwnPhone(userId: string, phoneNumber: string): Promise<UpdateOwnPhoneDto> {
+    await this.usersRepository.update(userId, { phoneNumber });
+    return { phoneNumber };
   }
 
   async findById(id: string, actorId: string, orgId?: string): Promise<UserDto> {
