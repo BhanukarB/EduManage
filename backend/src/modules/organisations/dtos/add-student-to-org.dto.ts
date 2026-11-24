@@ -89,21 +89,21 @@ export enum StudentGroupType {
   Batches = 'batches',
 }
 
-export interface RosterGuardian {
+export interface StudentGuardianContact {
   firstName: string;
   middleName: string | null;
   lastName: string;
   phoneNumber: string | null;
 }
 
-export interface RosterStudent extends RosterGuardian {
+export interface StudentListItem extends StudentGuardianContact {
   id: string;
   enrollmentNumber: string;
   emailId: string | null;
-  guardians: RosterGuardian[];
+  guardians: StudentGuardianContact[];
 }
 
-export class StudentRosterQueryDto {
+export class StudentListQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @Type(() => Number)
   @IsInt()
@@ -119,9 +119,9 @@ export class StudentRosterQueryDto {
   pageSize = 10;
 }
 
-export interface StudentRosterPage {
+export interface StudentListPage {
   group: { name: string; classId: string; className: string; academicSessionId: string };
-  items: RosterStudent[];
+  items: StudentListItem[];
   total: number;
   page: number;
   pageSize: number;

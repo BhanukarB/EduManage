@@ -16,7 +16,7 @@ import {
   CreateOrgAcademicSessionAPI,
   CreateOrganisationAPI,
   AddStudentToOrgAPI,
-  GetStudentRosterAPI,
+  GetStudentListAPI,
   AddOrganisationStaffAPI,
   CreateSubjectAPI,
   GetBranchByIdAPI,
@@ -67,7 +67,7 @@ import {
 import {
   BatchSubjectMappingDto, CreateBatchSubjectMappingRequestDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
-import { StudentRosterQueryDto, StudentRosterPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { OrganisationsService } from './organisations.service';
 
 @ApiTags('organisations')
@@ -657,18 +657,18 @@ export class OrganisationsController {
     return this.organisationsService.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
   }
 
-  @Get(GetStudentRosterAPI.path)
-  @Permissions(...GetStudentRosterAPI.permissions)
-  getStudentRoster(
+  @Get(GetStudentListAPI.path)
+  @Permissions(...GetStudentListAPI.permissions)
+  getStudentList(
     @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('groupType', new ParseEnumPipe(StudentGroupType)) groupType: StudentGroupType,
     @Param('groupId', ParseUUIDPipe) groupId: string,
-    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: StudentRosterQueryDto,
-  ): Promise<StudentRosterPage> {
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: StudentListQueryDto,
+  ): Promise<StudentListPage> {
     this.assertBranchAccess(req, orgId, branchId);
-    return this.organisationsService.getStudentRoster(orgId, branchId, groupType, groupId, query);
+    return this.organisationsService.getStudentList(orgId, branchId, groupType, groupId, query);
   }
 
   @Post(AddStudentToOrgAPI.path)

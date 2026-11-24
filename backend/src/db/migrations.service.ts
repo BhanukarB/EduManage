@@ -20,6 +20,8 @@ export class MigrationsService implements OnApplicationBootstrap, OnApplicationS
       this.logger.log('Database migrations are up to date');
     }
 
+    await this.renameStudentListPermission();
+
     const permissions = Object.values(PermissionEnum).map((permission) => ({
       id: randomUUID(),
       permission,
@@ -30,6 +32,29 @@ export class MigrationsService implements OnApplicationBootstrap, OnApplicationS
       .onConflict('permission')
       .ignore();
     this.logger.log(`Synchronized ${permissions.length} permissions`);
+  }
+
+  private async renameStudentListPermission(): Promise<void> {
+    await knexConnection.transaction(async (trx) => {
+      const permissions = trx('permissions_table');
+      const previous = await permissions.clone().where({ permission: 'view_student_roster' }).forUpdate().first('id');
+      if (!previous) return;
+
+      const permission = PermissionEnum.VIEW_STUDENT_LIST;
+      const current = await permissions.clone().where({ permission }).first('id');
+      if (!current) {
+        await permissions.where({ id: previous.id }).update({ permission });
+        return;
+      }
+
+      const roles = await trx('role_permissions_table').where({ permission_id: previous.id }).pluck('role_id');
+      if (roles.length) {
+        await trx('role_permissions_table')
+          .insert(roles.map((roleId: string) => ({ id: randomUUID(), role_id: roleId, permission_id: current.id })))
+          .onConflict(['role_id', 'permission_id']).ignore();
+      }
+      await permissions.where({ id: previous.id }).del();
+    });
   }
 
   async onApplicationShutdown(): Promise<void> {

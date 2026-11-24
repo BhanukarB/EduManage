@@ -15,7 +15,7 @@ import {
 } from './dtos/class-subject-mapping.dto';
 import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
 import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
-import { StudentRosterQueryDto, StudentRosterPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
 
 @Injectable()
@@ -215,8 +215,8 @@ export class OrganisationsService {
     return this.organisationsRepository.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
   }
 
-  getStudentRoster(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentRosterQueryDto): Promise<StudentRosterPage> {
-    return this.organisationsRepository.getStudentRoster(orgId, branchId, groupType, groupId, query);
+  getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
+    return this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query);
   }
 
   async addStudentToOrg(orgId: string, data: AddStudentToOrgDto, requireGroup = false): Promise<AddStudentToOrgResultDto> {

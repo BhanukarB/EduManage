@@ -75,7 +75,7 @@ This is a proposed starting point for the current permission catalog in `backend
 
 - **org_admin**: manage organization setup, membership, and organization-level role assignment within the assigned organization. Keep global role/permission administration and API-key creation restricted to `super_admin` or a dedicated trusted operator.
 - **principal**: manage academic structure and read school-level administration information within the assigned organization. User and staff management should respect role hierarchy and organization scope.
-- **teacher**: read academic reference data needed to teach and manage their own notification preferences. Teaching, attendance, grading, and class roster permissions should be added when those APIs exist.
+- **teacher**: read academic reference data needed to teach and manage their own notification preferences. Teaching, attendance, grading, and class list permissions should be added when those APIs exist.
 - **guardian**: manage their own notification preferences. Student progress, attendance, messaging, and linked-student access should be added when those APIs exist and relationship checks are available.
 - **student**: manage their own notification preferences. Timetable, assignments, grades, and student profile permissions should be added when those APIs exist and are scoped to the authenticated student.
 

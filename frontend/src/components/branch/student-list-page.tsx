@@ -21,14 +21,14 @@ interface Student extends Contact {
   emailId: string | null;
   guardians: Contact[];
 }
-interface RosterPage {
+interface ListPage {
   group: { name: string; classId: string; className: string; academicSessionId: string };
   items: Student[];
   page: number;
   pageSize: number;
   total: number;
 }
-interface RosterProps {
+interface StudentListProps {
   orgId: string;
   branchId: string;
   classId: string;
@@ -45,16 +45,16 @@ function name(contact: Contact): string {
   return [contact.firstName, contact.middleName, contact.lastName].filter(Boolean).join(" ");
 }
 
-export function StudentRosterPage({ orgId, branchId, classId, groupId, groupType }: RosterProps): ReactElement {
+export function StudentListPage({ orgId, branchId, classId, groupId, groupType }: StudentListProps): ReactElement {
   const search = useSearchParams();
   const page = search.get("page") ?? "1";
   const pageSize = search.get("pageSize") ?? "10";
   const params = new URLSearchParams({ page, pageSize });
   const path = `organisations/${orgId}/branches/${branchId}/${groupType}/${groupId}/students?${params}`;
-  const [result, setResult] = useState<{ path: string; data?: RosterPage; error?: string } | null>(null);
+  const [result, setResult] = useState<{ path: string; data?: ListPage; error?: string } | null>(null);
   const current = result?.path === path ? result : null;
-  const roster = current?.data;
-  const group = roster?.group;
+  const list = current?.data;
+  const group = list?.group;
   const [selected, setSelected] = useState<Student | null>(null);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,7 +63,7 @@ export function StudentRosterPage({ orgId, branchId, classId, groupId, groupType
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
-    readApi<RosterPage>(path).then(data => {
+    readApi<ListPage>(path).then(data => {
       if (!active) return;
       setResult(data.group.classId === classId ? { path, data } : { path, error: "This group belongs to another class." });
     })
@@ -113,19 +113,19 @@ export function StudentRosterPage({ orgId, branchId, classId, groupId, groupType
       <MuiLink component={Link} href={`/classes/${classId}`}>{group?.className ?? "Class details"}</MuiLink>
       <Typography color="text.primary">Students</Typography>
     </Breadcrumbs>
-    <PageHeader title="Students" subtitle={group && `${group.className} · ${group.name}`}
+    <PageHeader title="Student list" subtitle={group && `${group.className} · ${group.name}`}
       action={group && <Button variant="contained" onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button>} />
     {confirmation && <Alert severity="success" sx={{ mb: 2 }}>{confirmation}</Alert>}
-    {current?.error ? <Alert severity="error">{current.error}</Alert> : !roster ? <CircularProgress aria-label="Loading students" /> :
+    {current?.error ? <Alert severity="error">{current.error}</Alert> : !list ? <CircularProgress aria-label="Loading students" /> :
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
         <TableContainer>
-          <Table aria-label="Students" sx={{ minWidth: 620 }}>
+          <Table aria-label="Student list" sx={{ minWidth: 620 }}>
             <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
               <TableRow>{["Student name", "Enrollment number", "Email", "Phone number"].map(label =>
                 <TableCell key={label}>{label}</TableCell>)}</TableRow>
             </TableHead>
             <TableBody>
-              {roster.items.map(student => <TableRow hover key={student.id}
+              {list.items.map(student => <TableRow hover key={student.id}
                 onClick={() => setSelected(student)}
                 sx={{ cursor: "pointer", "& > td": { py: 1.5, borderBottom: "1px solid", borderColor: "grey.300" } }}>
                 <TableCell><Button variant="text" sx={{ textTransform: "none", fontWeight: 600, px: 0 }}
@@ -134,13 +134,13 @@ export function StudentRosterPage({ orgId, branchId, classId, groupId, groupType
                 <TableCell>{student.emailId || "—"}</TableCell>
                 <TableCell>{student.phoneNumber || "—"}</TableCell>
               </TableRow>)}
-              {!roster.items.length && <TableRow><TableCell colSpan={4}>No students enrolled.</TableCell></TableRow>}
+              {!list.items.length && <TableRow><TableCell colSpan={4}>No students enrolled.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </TableContainer>
-        <TablePagination component="div" count={roster.total} page={roster.page - 1} rowsPerPage={roster.pageSize}
-          rowsPerPageOptions={Array.from(new Set([2, 5, 10, 25, 50, roster.pageSize])).sort((a, b) => a - b)}
-          onPageChange={(_, index) => paginate(index + 1, roster.pageSize)}
+        <TablePagination component="div" count={list.total} page={list.page - 1} rowsPerPage={list.pageSize}
+          rowsPerPageOptions={Array.from(new Set([2, 5, 10, 25, 50, list.pageSize])).sort((a, b) => a - b)}
+          onPageChange={(_, index) => paginate(index + 1, list.pageSize)}
           onRowsPerPageChange={event => paginate(1, Number(event.target.value))} />
       </Paper>}
     <Dialog open={adding || Boolean(selected)} fullWidth maxWidth="sm" onClose={close} aria-labelledby="student-dialog-title">

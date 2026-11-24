@@ -23,7 +23,7 @@ import {
 import {
     BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
-import { StudentRosterQueryDto, StudentRosterPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
 import { RoleType } from '../../utils/enums/roleType';
 
@@ -70,7 +70,7 @@ const subjectColumns = [
 
 @Injectable()
 export class OrganisationsRepository {
-    async getStudentRoster(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentRosterQueryDto): Promise<StudentRosterPage> {
+    async getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
         const section = groupType === StudentGroupType.Sections;
         const groupRow = await knexConnection(section ? 'sections_table as g' : 'batches_table as g')
             .join('classes as c', 'c.id', 'g.class_id')
@@ -79,14 +79,14 @@ export class OrganisationsRepository {
                 ...(section ? ['g.section_code as code'] : ['g.batch_code as code', 'g.batch_name as batchName']));
         if (!groupRow) throw new NotFoundException('Class group not found in this branch');
         const { code, batchName, ...group } = groupRow;
-        const roster = knexConnection('organisation_student_table as s')
+        const list = knexConnection('organisation_student_table as s')
             .join('users_table as u', 'u.id', 's.user_id')
             .where({ 's.org_id': orgId, 's.branch_id': branchId, [section ? 's.section_id' : 's.batch_id']: groupId, 's.status': 1 });
-        const count = await roster.clone().count('* as total').first();
+        const count = await list.clone().count('* as total').first();
         const total = Number(count?.total ?? 0);
         const { pageSize } = query;
         const page = Math.min(query.page, Math.max(1, Math.ceil(total / pageSize)));
-        const students = await roster.orderBy(['u.first_name', 'u.last_name', 's.enrollment_number', 's.id'])
+        const students = await list.orderBy(['u.first_name', 'u.last_name', 's.enrollment_number', 's.id'])
             .limit(pageSize).offset((page - 1) * pageSize)
             .select('s.id', 's.user_id as userId', 's.enrollment_number as enrollmentNumber', 'u.first_name as firstName',
                 'u.middle_name as middleName', 'u.last_name as lastName', 'u.email_id as emailId', 'u.phone_number as phoneNumber');
