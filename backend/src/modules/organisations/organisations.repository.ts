@@ -409,11 +409,27 @@ export class OrganisationsRepository {
         return subject;
     }
 
-    async findSubjectListByOrgId(orgId: string): Promise<SubjectDto[]> {
+    async assignBranchSubject(orgId: string, branchId: string, subjectId: string): Promise<void> {
+        await knexConnection.transaction(async (trx) => {
+            const branch = await trx('branches').where({ id: branchId, org_id: orgId }).first('id').forShare();
+            if (!branch) throw new NotFoundException('Branch not found for this organisation');
+            const subject = await trx('subjects_table')
+                .where({ id: subjectId, organisation_id: orgId }).first('id').forShare();
+            if (!subject) throw new NotFoundException('Subject not found for this organisation');
+            await trx('branch_subjects_table').insert({ id: randomUUID(), branch_id: branchId, subject_id: subjectId })
+                .onConflict(['branch_id', 'subject_id']).ignore();
+        });
+    }
+
+    async findSubjectListByOrgId(orgId: string, branchId?: string): Promise<SubjectDto[]> {
         const organisation = await knexConnection('organisations').where({ id: orgId }).first('id');
         if (!organisation) throw new NotFoundException('Organisation not found');
         return knexConnection('subjects_table')
             .where({ organisation_id: orgId })
+            .modify((query) => {
+                if (branchId) query.whereIn('id', knexConnection('branch_subjects_table')
+                    .where({ branch_id: branchId }).select('subject_id'));
+            })
             .select(subjectColumns)
             .orderBy('subject_name', 'asc');
     }

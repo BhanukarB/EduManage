@@ -178,8 +178,12 @@ export class OrganisationsService {
     return this.organisationsRepository.updateSubject(orgId, id, data);
   }
 
-  async getSubjectListByOrgId(orgId: string): Promise<SubjectDto[]> {
-    return this.organisationsRepository.findSubjectListByOrgId(orgId);
+  async assignBranchSubject(orgId: string, branchId: string, subjectId: string): Promise<void> {
+    await this.organisationsRepository.assignBranchSubject(orgId, branchId, subjectId);
+  }
+
+  async getSubjectListByOrgId(orgId: string, branchId?: string): Promise<SubjectDto[]> {
+    return this.organisationsRepository.findSubjectListByOrgId(orgId, branchId);
   }
 
   async getSubjectById(orgId: string, id: string): Promise<SubjectDto> {

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { ReactElement, ReactNode } from "react";
 import { Box } from "@mui/material";
+import { ProfileLink } from "@/components/profile-link";
 import { WorkspaceSidebar } from "@/components/layout/workspace-sidebar";
 import { requireDashboardContext } from "@/lib/auth-server";
 
@@ -12,7 +13,12 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
       <WorkspaceSidebar role={role} email={email} initiallyHidden={hidden} />
-      <Box sx={{ flex: 1, minWidth: 0 }}>{children}</Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box component="header" sx={{ display: "flex", justifyContent: "flex-end", px: { xs: 2, md: 4 }, py: 1 }}>
+          <ProfileLink email={email} />
+        </Box>
+        {children}
+      </Box>
     </Box>
   );
 }

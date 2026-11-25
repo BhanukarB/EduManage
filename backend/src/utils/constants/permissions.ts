@@ -44,6 +44,7 @@ export enum PermissionEnum {
   UPDATE_ORG_ACADEMIC_SESSION = 'update_org_academic_session',
   GET_ORG_ACADEMIC_SESSION_LIST = 'get_org_academic_session_list',
   GET_ORG_ACADEMIC_SESSION_BY_ID = 'get_org_academic_session_by_id',
+  ASSIGN_BRANCH_SUBJECT = 'assign_branch_subject',
   CREATE_SUBJECT = 'create_subject',
   UPDATE_SUBJECT = 'update_subject',
   GET_SUBJECT_LIST_BY_ORG_ID = 'get_subject_list_by_org_id',

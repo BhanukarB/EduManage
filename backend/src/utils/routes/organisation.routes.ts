@@ -360,6 +360,19 @@ export const GetOrgAcademicSessionByIdAPI = {
   sample: '/<orgId>/academic-sessions/<id>',
 };
 
+export const AssignBranchSubjectAPI = {
+  path: '/:orgId/branches/:branchId/subjects',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}:orgId/branches/:branchId/subjects`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/branches/:branchId/subjects`,
+  ],
+  method: RequestMethod.POST,
+  argument: ['orgId', 'branchId'],
+  permissions: [PermissionEnum.ASSIGN_BRANCH_SUBJECT],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/branches/<branchId>/subjects',
+};
+
 export const CreateSubjectAPI = {
   path: '/:orgId/subjects/create',
   endpoint: [

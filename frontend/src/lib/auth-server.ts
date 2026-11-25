@@ -60,10 +60,10 @@ export async function requireDashboardContext(): Promise<DashboardContext> {
   };
 }
 
-export async function requireBranchManager(branchId?: string): Promise<BranchManagerContext & { email?: string }> {
-  const { manager, email } = await requireDashboardContext();
+export async function requireBranchManager(branchId?: string): Promise<BranchManagerContext> {
+  const { manager } = await requireDashboardContext();
   if (!manager || (branchId && manager.branchId !== branchId)) redirect("/dashboard");
-  return { ...manager, email };
+  return manager;
 }
 
 export async function requireAuth() {

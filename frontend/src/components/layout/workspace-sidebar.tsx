@@ -23,6 +23,7 @@ const navigation = {
   ],
   branch: [
     dashboard,
+    { label: "Subjects", href: "/subjects", icon: <SchoolOutlined /> },
     { label: "Classes", href: "/classes", icon: <SchoolOutlined /> },
     { label: "Staff", href: "/staff", icon: <GroupsOutlined /> },
   ],

@@ -1,5 +1,6 @@
 import { ParseEnumPipe, ValidationPipe, Body, Controller, ForbiddenException, Get, Param, ParseBoolPipe, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { Permissions } from '../../utils/decorators/permission.decorator';
@@ -18,6 +19,7 @@ import {
   AddStudentToOrgAPI,
   GetStudentListAPI,
   AddOrganisationStaffAPI,
+  AssignBranchSubjectAPI,
   CreateSubjectAPI,
   GetBranchByIdAPI,
   GetBranchListByOrgIdAPI,
@@ -56,7 +58,7 @@ import {
   OrgAcademicSessionDto,
   UpdateOrgAcademicSessionDto,
 } from './dtos/org-academic-session.dto';
-import { CreateSubjectRequestDto, SubjectDto, UpdateSubjectDto } from './dtos/subject.dto';
+import { AssignBranchSubjectDto, CreateSubjectRequestDto, SubjectDto, UpdateSubjectDto } from './dtos/subject.dto';
 import {
   ClassSubjectMappingDto,
   CreateClassSubjectMappingRequestDto,
@@ -526,6 +528,19 @@ export class OrganisationsController {
   }
 
   // subjects
+  @Post(AssignBranchSubjectAPI.path)
+  @Permissions(...AssignBranchSubjectAPI.permissions)
+  @ApiOperation({ summary: 'Assign an organisation subject to a branch' })
+  assignBranchSubject(
+    @Req() req: Request,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })) data: AssignBranchSubjectDto,
+  ): Promise<void> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.assignBranchSubject(orgId, branchId, data.subjectId);
+  }
+
   @Post(CreateSubjectAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...CreateSubjectAPI.permissions)
@@ -537,6 +552,7 @@ export class OrganisationsController {
     @Body() data: CreateSubjectRequestDto,
   ): Promise<SubjectDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertNotBranchManager(req);
     return this.organisationsService.createSubject({ ...data, orgId });
   }
 
@@ -560,9 +576,14 @@ export class OrganisationsController {
   @Permissions(...GetSubjectListByOrgIdAPI.permissions)
   @ApiOperation({ summary: 'List subjects for an organisation' })
   @ApiResponse({ status: 200, type: [SubjectDto] })
-  getSubjectListByOrgId(@Req() req: any, @Param('orgId', ParseUUIDPipe) orgId: string): Promise<SubjectDto[]> {
-    this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.getSubjectListByOrgId(orgId);
+  getSubjectListByOrgId(
+    @Req() req: Request,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Query('branchId', new ParseUUIDPipe({ optional: true })) branchId?: string,
+  ): Promise<SubjectDto[]> {
+    if (branchId) this.assertBranchAccess(req, orgId, branchId);
+    else this.assertOrganisationAccess(req, orgId);
+    return this.organisationsService.getSubjectListByOrgId(orgId, branchId);
   }
 
   @Get(GetSubjectByIdAPI.path)

@@ -10,7 +10,6 @@ import {
 import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
-import { ProfileLink } from "@/components/profile-link";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 import { orgTypeLabel } from "@/lib/formatters";
 import type { Organisation, Branch, Staff } from "@/types/domain";
@@ -22,7 +21,7 @@ import { StatusChip } from "@/components/common/status-chip";
 type OrganisationOverview = Organisation & { branchCount: number; staffCount: number };
 type BranchForm = Pick<Branch, "branchName" | "branchCode" | "type" | "emailId"> & { phoneNumber: string };
 
-export function OrganisationAdminDashboard({ email, orgId, section }: { email?: string; orgId: string; section: "Dashboard" | "Branches" | "Members" }) {
+export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; section: "Dashboard" | "Branches" | "Members" }) {
   const [memberTab, setMemberTab] = useState(0);
   const [organisation, setOrganisation] = useState<OrganisationOverview | null>(null);
   const [branches, setBranches] = useState<Branch[] | null>(null);
@@ -101,7 +100,7 @@ export function OrganisationAdminDashboard({ email, orgId, section }: { email?: 
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", display: "flex" }}>
 
       <Box component="main" sx={{ flex: 1, minWidth: 0, maxWidth: 1360, mx: "auto", p: { xs: 2, md: 5 } }}>
-        <PageHeader title={section} subtitle={organisation?.name ?? "Your organisation"} action={<ProfileLink email={email} />} />
+        <PageHeader title={section} subtitle={organisation?.name ?? "Your organisation"} />
         {(error || loadError) && <Alert severity="error" sx={{ mb: 2 }}>{error ?? loadError}</Alert>}
         {loading ? <PanelLoading padding={10} /> : <>
           {section === "Dashboard" && <Stack spacing={2.5}>

@@ -4,20 +4,19 @@ import { Box, Container, Paper, Stack, Typography } from "@mui/material";
 import { requireDashboardContext } from "@/lib/auth-server";
 import { SignOutButton } from "@/components/sign-out-button";
 import { SuperUserDashboard } from "@/components/super-user/super-user-dashboard";
-import { ProfileLink } from "@/components/profile-link";
 import { OrganisationAdminDashboard } from "@/components/org-admin/org-admin-dashboard";
 import { BranchDetailsPage } from "@/components/branch/branch-details-page";
 
 export default async function DashboardPage({ section }: { section: "Dashboard" | "Branches" | "Members" | "Organisations" | "Role Manager" }): Promise<ReactElement> {
-  const { email, superUser, manager, organisationId } = await requireDashboardContext();
+  const { superUser, manager, organisationId } = await requireDashboardContext();
   if (section === "Role Manager" || section === "Organisations") {
     if (!superUser) redirect("/dashboard");
-    return <SuperUserDashboard email={email} activeSection={section} />;
+    return <SuperUserDashboard activeSection={section} />;
   }
   if (section !== "Dashboard" && (superUser || manager || !organisationId)) redirect("/dashboard");
-  if (superUser) return <SuperUserDashboard email={email} activeSection="Organisations" />;
-  if (manager) return <BranchDetailsPage {...manager} email={email} branchManager />;
-  if (organisationId) return <OrganisationAdminDashboard key={organisationId} email={email} orgId={organisationId} section={section} />;
+  if (superUser) return <SuperUserDashboard activeSection="Organisations" />;
+  if (manager) return <BranchDetailsPage {...manager} branchManager />;
+  if (organisationId) return <OrganisationAdminDashboard key={organisationId} orgId={organisationId} section={section} />;
 
   return (
     <Box component="main" sx={{ minHeight: "100vh", py: 8 }}>
@@ -26,10 +25,7 @@ export default async function DashboardPage({ section }: { section: "Dashboard" 
           <Typography variant="overline" color="primary.main" fontWeight={700} letterSpacing={2}>
             CLASSMANAGE
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <ProfileLink email={email} />
-            <SignOutButton />
-          </Stack>
+          <SignOutButton />
         </Stack>
         <Paper elevation={0} sx={{ p: { xs: 4, md: 6 }, border: "1px solid", borderColor: "divider" }}>
           <Typography variant="h4" component="h1" fontWeight={700}>

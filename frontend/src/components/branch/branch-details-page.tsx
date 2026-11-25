@@ -6,7 +6,6 @@ import { Alert, Box, Breadcrumbs, Button, Divider, Link as MuiLink, List, ListIt
 import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import SchoolOutlined from "@mui/icons-material/SchoolOutlined";
-import { ProfileLink } from "@/components/profile-link";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 import type { Branch, Role, Staff } from "@/types/domain";
 import { AddStaffDialog, type AddStaffForm } from "@/features/staff/add-staff-dialog";
@@ -21,7 +20,7 @@ import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchIdentity, readBranchSummary, type BranchSummary } from "./branch-data";
 
 type BranchOption = Pick<Branch, "id" | "branchName">;
-export function BranchDetailsPage({ orgId, branchId, email, branchManager = false, initialStaffView = false }: { orgId: string; branchId: string; email?: string; branchManager?: boolean; initialStaffView?: boolean }) {
+export function BranchDetailsPage({ orgId, branchId, branchManager = false, initialStaffView = false }: { orgId: string; branchId: string; branchManager?: boolean; initialStaffView?: boolean }) {
   const router = useRouter();
   const [branchName, setBranchName] = useState<string | null>(null);
   const [summary, setSummary] = useState<BranchSummary | null>(null);
@@ -133,14 +132,11 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
   };
 
   return <BranchWorkspace maxWidth={1200}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Breadcrumbs aria-label="Breadcrumb">
+      <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}>
           <MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink>
           {!branchManager && <MuiLink component={Link} href="/branches" underline="hover" color="inherit">Branches</MuiLink>}
           {branchName && <Typography color="text.primary">{branchName}</Typography>}
-        </Breadcrumbs>
-        <ProfileLink email={email} />
-      </Stack>
+      </Breadcrumbs>
       {(error || (!staffView && summaryError)) && <Alert severity="error" sx={{ mt: 2 }}>{error ?? summaryError}</Alert>}
       {!staffView && !summary && !summaryError && <PanelLoading padding={12} />}
       {staffView && <PageHeader title={branchName ? `Staff at ${branchName}` : "Staff"} />}

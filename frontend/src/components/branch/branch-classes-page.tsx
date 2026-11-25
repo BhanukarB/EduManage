@@ -6,11 +6,10 @@ import Link from "next/link";
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, List, ListItem, ListItemButton, ListItemText, Paper, Snackbar, Stack, TextField, Typography } from "@mui/material";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchClasses, type BranchClass } from "./branch-data";
-import { ProfileLink } from "@/components/profile-link";
 import { PageHeader } from "@/components/common/page-header";
 import { api, extractErrorMessage } from "@/lib/api";
 
-export function BranchClassesPage({ orgId, branchId, email }: { orgId: string; branchId: string; email?: string }) {
+export function BranchClassesPage({ orgId, branchId }: { orgId: string; branchId: string }) {
   const [classes, setClasses] = useState<BranchClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +45,6 @@ export function BranchClassesPage({ orgId, branchId, email }: { orgId: string; b
   };
 
   return <BranchWorkspace>
-      <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}><ProfileLink email={email} /></Stack>
       <PageHeader title="Classes" subtitle="Classes assigned to this branch" action={<Button variant="contained" disabled={loading} onClick={() => openDialog()}>Add class</Button>} />
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <Paper variant="outlined" sx={{ borderRadius: "12px", px: { xs: 1, md: 2 } }}>

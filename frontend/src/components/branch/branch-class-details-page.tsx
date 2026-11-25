@@ -7,7 +7,6 @@ import ArrowBack from "@mui/icons-material/ArrowBack";
 import Link from "next/link";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchClasses, readBranchIdentity, type BranchClass, type BranchSummary } from "./branch-data";
-import { ProfileLink } from "@/components/profile-link";
 import { PageHeader } from "@/components/common/page-header";
 import { extractErrorMessage, readApi } from "@/lib/api";
 
@@ -17,7 +16,7 @@ interface AcademicSession { id: string; sessionName?: string; name?: string; sta
 interface ClassSection { id: string; academicSessionId: string; classId: string; sectionCode: string; capacity: number; status: number }
 interface ClassBatch { id: string; academicSessionId: string; classId: string; batchCode: string; batchName?: string | null; capacity: number; status?: number }
 
-export function BranchClassDetailsPage({ orgId, branchId, classId, email }: { orgId: string; branchId: string; classId: string; email?: string }): ReactElement {
+export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: string; branchId: string; classId: string }): ReactElement {
   const [sessionId, setSessionId] = useState("");
   const [branch, setBranch] = useState<BranchSummary["branch"] | null>(null);
   const [classItem, setClassItem] = useState<BranchClass | null>(null);
@@ -85,7 +84,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId, email }: { or
   const isSchool = branch?.type === 1;
   const relationName = isSchool ? "Sections" : "Batches";
   return <BranchWorkspace>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}><Breadcrumbs aria-label="Breadcrumb"><MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink><MuiLink component={Link} href="/classes" underline="hover" color="inherit">Classes</MuiLink><Typography color="text.primary">{classItem?.className ?? "Class details"}</Typography></Breadcrumbs><ProfileLink email={email} /></Stack>
+      <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}><MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink><MuiLink component={Link} href="/classes" underline="hover" color="inherit">Classes</MuiLink><Typography color="text.primary">{classItem?.className ?? "Class details"}</Typography></Breadcrumbs>
       <Button component={Link} href="/classes" startIcon={<ArrowBack />} sx={{ mb: 2 }}>
         Back to Classes
       </Button>

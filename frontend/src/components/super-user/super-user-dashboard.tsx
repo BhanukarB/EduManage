@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Box, Stack } from "@mui/material";
-import { ProfileLink } from "@/components/profile-link";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 import type { Organisation, Permission, Role } from "@/types/domain";
 import { RoleManagerSection } from "@/components/super-user/role-manager-section";
@@ -14,7 +13,7 @@ import { PageHeader } from "@/components/common/page-header";
 
 type RolePermissions = { roleId: string; role: string; permissions: Permission[] };
 
-export function SuperUserDashboard({ email, activeSection }: { email?: string; activeSection: "Organisations" | "Role Manager" }) {
+export function SuperUserDashboard({ activeSection }: { activeSection: "Organisations" | "Role Manager" }) {
   const [activeRoleTab, setActiveRoleTab] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -256,7 +255,7 @@ export function SuperUserDashboard({ email, activeSection }: { email?: string; a
 
       <Box component="main" sx={{ flexGrow: 1, minWidth: 0, maxWidth: 1360, mx: "auto", p: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>
-          <PageHeader title={activeSection} subtitle={`Manage ${activeSection.toLowerCase()} across ClassManage.`} action={<ProfileLink email={email} />} compactSpacing />
+          <PageHeader title={activeSection} subtitle={`Manage ${activeSection.toLowerCase()} across ClassManage.`} compactSpacing />
 
           {activeSection === "Role Manager" ? (
             <RoleManagerSection

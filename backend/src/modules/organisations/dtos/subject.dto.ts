@@ -1,6 +1,12 @@
 import { PartialType, ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
+export class AssignBranchSubjectDto {
+  @ApiProperty()
+  @IsUUID()
+  subjectId: string;
+}
+
 export class CreateSubjectDto {
   @ApiProperty()
   @IsUUID()
