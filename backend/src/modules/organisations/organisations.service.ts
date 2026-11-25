@@ -16,7 +16,7 @@ import {
 import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
 import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
 import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
-import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
+import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto, OrganisationStaffPageDto, StaffPageQueryDto } from './dtos/organisation-staff.dto';
 
 @Injectable()
 export class OrganisationsService {
@@ -78,12 +78,16 @@ export class OrganisationsService {
     return this.organisationsRepository.findOrganisationStaff(orgId, branchId);
   }
 
+  async getOrganisationStaffPage(orgId: string, query: StaffPageQueryDto): Promise<OrganisationStaffPageDto> {
+    return this.organisationsRepository.findOrganisationStaffPage(orgId, query);
+  }
+
   async addOrganisationStaff(data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
     return this.organisationsRepository.addOrganisationStaff(data);
   }
 
-  async updateOrganisationStaff(orgId: string, staffId: string, data: UpdateOrganisationStaffDto): Promise<OrganisationStaffDto> {
-    return this.organisationsRepository.updateOrganisationStaff(orgId, staffId, data);
+  async updateOrganisationStaff(data: UpdateOrganisationStaffDto, managerBranchId?: string): Promise<OrganisationStaffDto> {
+    return this.organisationsRepository.updateOrganisationStaff(data, managerBranchId);
   }
 
   async createClass(data: CreateClassDto): Promise<ClassDto> {

@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
@@ -60,4 +61,25 @@ export class OrganisationStaffDto {
   @ApiPropertyOptional({ nullable: true }) branchId: string | null;
   @ApiProperty() designation: string;
   @ApiProperty() status: number;
+}
+
+export class StaffPageQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsUUID()
+  roleId?: string;
+
+  @ApiPropertyOptional() @IsOptional() @IsUUID()
+  branchId?: string;
+
+  @ApiPropertyOptional({ default: 1 }) @Type(() => Number) @IsInt() @Min(1) @Max(2147483647)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 10 }) @Type(() => Number) @IsInt() @Min(1) @Max(100)
+  pageSize = 10;
+}
+
+export class OrganisationStaffPageDto {
+  @ApiProperty({ type: [OrganisationStaffDto] }) items: OrganisationStaffDto[];
+  @ApiProperty() total: number;
+  @ApiProperty() page: number;
+  @ApiProperty() pageSize: number;
 }

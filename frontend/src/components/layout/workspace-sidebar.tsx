@@ -19,6 +19,7 @@ const navigation = {
     dashboard,
     { label: "Branches", href: "/branches", icon: <ApartmentOutlined /> },
     { label: "Members", href: "/members", icon: <GroupsOutlined /> },
+    { label: "Subjects", href: "/subjects", icon: <SchoolOutlined /> },
   ],
   branch: [
     dashboard,

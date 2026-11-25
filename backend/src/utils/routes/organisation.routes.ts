@@ -119,6 +119,19 @@ export const GetOrganisationStaffAPI = {
   sample: '/<orgId>/staff',
 };
 
+export const GetOrganisationStaffPageAPI = {
+  path: '/:orgId/staff/page',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}:orgId/staff/page`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/staff/page`,
+  ],
+  method: RequestMethod.GET,
+  argument: 'orgId',
+  permissions: [PermissionEnum.GET_ORG_STAFF_LIST],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/staff/page',
+};
+
 export const UpdateOrganisationStaffAPI = {
   path: '/staff/update',
   endpoint: [

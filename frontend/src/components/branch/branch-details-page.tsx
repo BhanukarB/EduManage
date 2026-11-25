@@ -2,7 +2,7 @@
 
 import { PanelLoading } from "@/components/common/panel-loading";
 import { useEffect, useState } from "react";
-import { Alert, Box, Breadcrumbs, Button, Divider, Link as MuiLink, List, ListItem, ListItemText, Paper, Snackbar, Stack, Typography } from "@mui/material";
+import { Alert, Box, Breadcrumbs, Button, Divider, Link as MuiLink, List, ListItem, ListItemText, MenuItem, Paper, Snackbar, Stack, TablePagination, TextField, Typography } from "@mui/material";
 import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import SchoolOutlined from "@mui/icons-material/SchoolOutlined";
@@ -28,8 +28,14 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
   const [staff, setStaff] = useState<Staff[]>([]);
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [branchRoles, setBranchRoles] = useState<Role[]>([]);
+  const [roleId, setRoleId] = useState("");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [revision, setRevision] = useState(0);
+  const [roleError, setRoleError] = useState("");
   const [staffLoading, setStaffLoading] = useState(true);
-  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(true);
   const [staffView, setStaffView] = useState(initialStaffView);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,45 +60,55 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
       setStaffLoading(true);
       setError(null);
       try {
+        const params = new URLSearchParams({ branchId, page: String(page + 1), pageSize: String(pageSize) });
+        if (roleId) params.set("roleId", roleId);
         const [members, options] = await Promise.all([
-          api<Staff[]>(`organisations/${orgId}/staff?branchId=${branchId}`),
+          api<{ items: Staff[]; total: number }>(`organisations/${orgId}/staff/page?${params}`),
           branchManager
             ? readBranchIdentity(orgId, branchId).then((branch) => [{ id: branchId, branchName: branch.branchName }])
             : readApi<BranchOption[]>(`organisations/${orgId}/branches`, 30_000),
         ]);
         if (active) {
-          setStaff(members);
+          setStaff(members.items);
+          setTotal(members.total);
+          const lastPage = Math.max(0, Math.ceil(members.total / pageSize) - 1);
+          if (page > lastPage) setPage(lastPage);
           setBranches(options);
           setBranchName((name) => name ?? options.find((branch) => branch.id === branchId)?.branchName ?? null);
         }
       } catch (reason) {
-        if (active) setError(extractErrorMessage(reason, "Could not load branch staff."));
+        if (active) {
+          setStaff([]);
+          setError(extractErrorMessage(reason, "Could not load branch staff."));
+        }
       } finally {
         if (active) setStaffLoading(false);
       }
     };
     void Promise.resolve().then(load);
     return () => { active = false; };
-  }, [orgId, branchId, branchManager, staffView]);
+  }, [orgId, branchId, branchManager, staffView, roleId, page, pageSize, revision]);
 
-  const openAddStaff = async (): Promise<void> => {
-    setDialogError(null);
-    setAddDialogOpen(true);
-    setRolesLoading(true);
-    try {
-      setBranchRoles(await readApi<Role[]>("rbac/branch-roles", 30_000));
-    } catch (reason) {
-      setDialogError(extractErrorMessage(reason, "Could not load branch roles."));
-    } finally {
-      setRolesLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!staffView) return;
+    let active = true;
+    void readApi<Role[]>("rbac/branch-roles", 30_000)
+      .then((roles) => {
+        if (active) {
+          setBranchRoles(roles.filter((role) => role.name !== "student"));
+          setRoleError("");
+        }
+      })
+      .catch((reason: unknown) => { if (active) setRoleError(extractErrorMessage(reason, "Could not load branch roles.")); })
+      .finally(() => { if (active) setRolesLoading(false); });
+    return () => { active = false; };
+  }, [staffView]);
 
   const updateStaff = async (person: Staff, changes: StaffChanges) => {
     setSaving(true); setError(null);
     try {
       const updated = await updateStaffMember(orgId, person.id, changes);
-      setStaff((current) => current.map((item) => item.id === person.id ? updated : item).filter((item) => item.branchId === branchId));
+      setRevision((value) => value + 1);
       setStaffNotice("Staff member updated.");
       if (person.branchId === branchId && updated.branchId !== branchId) {
         setSummary((current) => current ? { ...current, staffCount: Math.max(0, current.staffCount - 1) } : current);
@@ -104,8 +120,8 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
   const addStaff = async (staffForm: AddStaffForm): Promise<boolean> => {
     setSaving(true); setDialogError(null);
     try {
-      const created = await api<Staff>("organisations/staff/add", { method: "POST", body: JSON.stringify({ ...staffForm, orgId, branchId, phoneNumber: staffForm.phoneNumber || null }) });
-      setStaff((current) => [...current, created]);
+      await api<Staff>("organisations/staff/add", { method: "POST", body: JSON.stringify({ ...staffForm, orgId, branchId, phoneNumber: staffForm.phoneNumber || null }) });
+      setRevision((value) => value + 1);
       setSummary((current) => current ? { ...current, staffCount: current.staffCount + 1 } : current);
       setAddDialogOpen(false);
       return true;
@@ -146,18 +162,28 @@ export function BranchDetailsPage({ orgId, branchId, email, branchManager = fals
         </> : <>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, mb: 2 }}>
             <Button onClick={() => branchManager ? router.push("/dashboard") : setStaffView(false)}>Back to branch</Button>
-            <Button variant="contained" disabled={staffLoading || !branchName} onClick={() => void openAddStaff()}>Add staff</Button>
+            <Button variant="contained" disabled={staffLoading || !branchName} onClick={() => { setDialogError(null); setAddDialogOpen(true); }}>Add staff</Button>
           </Stack>
           <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: "12px" }}>
+            {roleError && <Alert severity="error" sx={{ mb: 2 }}>{roleError}</Alert>}
+            <TextField select size="small" label="Branch role" value={roleId} disabled={rolesLoading || Boolean(roleError)}
+              slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}
+              onChange={(event) => { setRoleId(event.target.value); setPage(0); }} sx={{ minWidth: 220, mb: 2 }}>
+              <MenuItem value="">All roles</MenuItem>
+              {branchRoles.map((role) => <MenuItem key={role.id} value={role.id}>{role.name}</MenuItem>)}
+            </TextField>
             {staffLoading ? <PanelLoading padding={4} /> : staff.length ? <List disablePadding>{staff.map((person) => <StaffListRow key={person.id} person={person} branches={branches} disabled={saving}
               onDesignationChange={(member, designation) => { if (designation !== member.designation) void updateStaff(member, { designation }); }}
               onBranchChange={(member, branchId) => void updateStaff(member, { branchId })}
-              onStatusChange={(member, status) => void updateStaff(member, { status })} />)}</List> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>No staff are assigned to this branch.</Typography>}
+              onStatusChange={(member, status) => void updateStaff(member, { status })} />)}</List> : !error && <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>{roleId ? "No staff in this branch have this role." : "No staff are assigned to this branch."}</Typography>}
+            <TablePagination component="div" count={total} page={page} rowsPerPage={pageSize} rowsPerPageOptions={[5, 10, 25, 50]}
+              onPageChange={(_, next) => setPage(next)}
+              onRowsPerPageChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} />
           </Paper>
         </>}
       </>}
     {branchName && <AddStaffDialog open={addDialogOpen} branchName={branchName} branchRoles={branchRoles}
-      rolesLoading={rolesLoading} saving={saving} error={dialogError}
+      rolesLoading={rolesLoading} saving={saving} error={dialogError || roleError || null}
       onClose={() => setAddDialogOpen(false)} onSave={addStaff} />}
     <Snackbar open={Boolean(staffNotice)} autoHideDuration={3500} onClose={() => setStaffNotice("")} message={staffNotice} />
   </BranchWorkspace>;

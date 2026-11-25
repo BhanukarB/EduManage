@@ -22,6 +22,7 @@ import {
   GetBranchByIdAPI,
   GetBranchListByOrgIdAPI,
   GetOrganisationStaffAPI,
+  GetOrganisationStaffPageAPI,
   GetClassListByOrgIdAPI,
   GetClassListByBranchAPI,
   GetClassBatchListAPI,
@@ -46,7 +47,7 @@ import {
 } from '../../utils/routes/organisation.routes';
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { BranchDto, CreateBranchRequestDto, UpdateBranchDto } from './dtos/branch.dto';
-import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto } from './dtos/organisation-staff.dto';
+import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto, OrganisationStaffPageDto, StaffPageQueryDto } from './dtos/organisation-staff.dto';
 import { ClassDto, CreateClassRequestDto, UpdateClassDto } from './dtos/class.dto';
 import { ClassSectionDto, CreateClassSectionRequestDto, UpdateClassSectionDto } from './dtos/class-section.dto';
 import { ClassBatchDto, CreateClassBatchRequestDto, UpdateClassBatchDto } from './dtos/class-batch.dto';
@@ -85,7 +86,7 @@ export class OrganisationsController {
 
   private assertBranchAccess(req: any, orgId: string, branchId: string): void {
     this.assertOrganisationAccess(req, orgId);
-    if (req.user?.roles?.includes('branch_manager') && req.user.branchId !== branchId) {
+    if (req.user?.roles?.includes('branch_manager') && (!req.user.branchId || req.user.branchId !== branchId)) {
       throw new ForbiddenException('You do not have access to this branch');
     }
   }
@@ -234,6 +235,25 @@ export class OrganisationsController {
     return this.organisationsService.getOrganisationStaff(orgId, scopedBranch);
   }
 
+  @Get(GetOrganisationStaffPageAPI.path)
+  @Permissions(...GetOrganisationStaffPageAPI.permissions)
+  @ApiOperation({ summary: 'List a page of staff, optionally filtered by branch-level role' })
+  @ApiResponse({ status: 200, type: OrganisationStaffPageDto })
+  getOrganisationStaffPage(
+    @Req() req: { user: { orgId: string; roles: string[]; branchId: string | null } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) query: StaffPageQueryDto,
+  ): Promise<OrganisationStaffPageDto> {
+    this.assertOrganisationAccess(req, orgId);
+    if (req.user.roles.includes('branch_manager')) {
+      const branchId = req.user.branchId;
+      if (!branchId) throw new ForbiddenException('No branch is assigned to this account');
+      this.assertBranchAccess(req, orgId, query.branchId ?? branchId);
+      return this.organisationsService.getOrganisationStaffPage(orgId, { ...query, branchId });
+    }
+    return this.organisationsService.getOrganisationStaffPage(orgId, query);
+  }
+
   @Put(UpdateOrganisationStaffAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...UpdateOrganisationStaffAPI.permissions)
@@ -244,11 +264,14 @@ export class OrganisationsController {
     @Body() data: UpdateOrganisationStaffDto,
   ): Promise<OrganisationStaffDto> {
     this.assertOrganisationAccess(req, data.orgId);
-    if (req.user?.roles?.includes('branch_manager')) {
-      const existing = await this.organisationsService.getOrganisationStaff(data.orgId);
-      if (!existing.some((person) => person.id === data.staffId && person.branchId === req.user.branchId) || (data.branchId && data.branchId !== req.user.branchId)) throw new ForbiddenException('You do not have access to this staff member or branch');
+    if (req.user.roles?.includes('branch_manager')) {
+      const branchId = req.user.branchId;
+      if (!branchId || (data.branchId !== undefined && data.branchId !== branchId)) {
+        throw new ForbiddenException('You do not have access to this branch');
+      }
+      return this.organisationsService.updateOrganisationStaff(data, branchId);
     }
-    return this.organisationsService.updateOrganisationStaff(data.orgId, data.staffId, data);
+    return this.organisationsService.updateOrganisationStaff(data);
   }
 
   @Post(AddOrganisationStaffAPI.path)
@@ -257,7 +280,6 @@ export class OrganisationsController {
   @ApiOperation({ summary: 'Add a staff member to an organisation branch' })
   @ApiResponse({ status: 201, type: OrganisationStaffDto })
   addOrganisationStaff(@Req() req: any, @Body() data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
-    this.assertOrganisationAccess(req, data.orgId);
     this.assertBranchAccess(req, data.orgId, data.branchId);
     return this.organisationsService.addOrganisationStaff(data);
   }
