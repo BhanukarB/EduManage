@@ -8,3 +8,5 @@ coverage/
 .env.*
 !.env.example
 AGENTS.md
+/docs/testing/playwright.md
+/docs/testing/rbac.md
