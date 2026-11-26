@@ -1,6 +1,5 @@
 import type { Knex } from 'knex';
 
-
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('users_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -13,13 +12,11 @@ export async function up(knex: Knex): Promise<void> {
     table.index('org_id');
     table.jsonb('address').nullable();
     table.timestamps(true, true); // created_at, updated_at (with defaults)
+    table.string('password_hash').nullable();
+    table.text('refresh_token_hash').nullable();
   });
 }
 
-// ---------------------------------------------------------------------------
-// down – drop tables in reverse dependency order
-// ---------------------------------------------------------------------------
 export async function down(knex: Knex): Promise<void> {
-
-  await knex.schema.dropTableIfExists('users_table');
+  await knex.schema.dropTable('users_table');
 }

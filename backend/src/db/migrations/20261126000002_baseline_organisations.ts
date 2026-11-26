@@ -1,8 +1,6 @@
 import type { Knex } from 'knex';
 
-
 export async function up(knex: Knex): Promise<void> {
-
   await knex.schema.createTable('organisations', (table) => {
     table.uuid('id').primary().notNullable();
     table.string('name').notNullable();
@@ -14,7 +12,7 @@ export async function up(knex: Knex): Promise<void> {
     table.jsonb('address').nullable();
     table.integer('status').notNullable().defaultTo(1); // ACTIVE: 1/ INACTIVE: 0
     table.timestamps(true, true);
-  })
+  });
 
   await knex.schema.createTable('academic_sessions_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -23,11 +21,11 @@ export async function up(knex: Knex): Promise<void> {
     table.date('start_date').notNullable();
     table.date('end_date').notNullable();
     table.timestamps(true, true);
-  })
+  });
 
   await knex.schema.createTable('branches', (table) => {
     table.uuid('id').primary().notNullable();
-    table.uuid('org_id').notNullable()
+    table.uuid('org_id').notNullable();
     table.string('branch_name').notNullable();
     table.string('branch_code').notNullable();
     table.integer('type').notNullable(); // SCHOOL: 1 / COACHING: 2
@@ -36,7 +34,8 @@ export async function up(knex: Knex): Promise<void> {
     table.jsonb('address').nullable();
     table.integer('status').notNullable().defaultTo(1); // ACTIVE: 1/ INACTIVE: 0
     table.timestamps(true, true);
-  })
+    table.unique(['org_id', 'id']);
+  });
 
   await knex.schema.createTable('classes', (table) => {
     table.uuid('id').primary().notNullable();
@@ -46,9 +45,8 @@ export async function up(knex: Knex): Promise<void> {
     table.text('description').nullable();
     table.integer('status').notNullable().defaultTo(1); // ACTIVE: 1/ INACTIVE: 0
     table.timestamps(true, true);
-  })
+  });
 
-  // for schools
   await knex.schema.createTable('sections_table', (table) => {
     table.uuid('id').primary().notNullable();
     table.uuid('class_id').notNullable();
@@ -60,9 +58,8 @@ export async function up(knex: Knex): Promise<void> {
     table.string('daily_end_time');
     table.integer('status').notNullable().defaultTo(1); // ACTIVE: 1 / INACTIVE: 0
     table.timestamps(true, true);
-  })
+  });
 
-  // for coachings
   await knex.schema.createTable('batches_table', (table) => {
     table.uuid('id').primary().notNullable();
     table.uuid('org_id').notNullable();
@@ -78,7 +75,7 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('capacity').notNullable();
     table.integer('status').notNullable().defaultTo(1); // ACTIVE: 1 / INACTIVE: 0
     table.timestamps(true, true);
-  })
+  });
 
   await knex.schema.createTable('subjects_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -88,31 +85,23 @@ export async function up(knex: Knex): Promise<void> {
     table.text('description');
     table.integer('status').notNullable().defaultTo(1); // ACTIVE: 1 / INACTIVE: 0
     table.timestamps(true, true);
-  })
+  });
 
-  await knex.schema.createTable('class_subjects_table', (table) => {
-    table.uuid('id').primary().notNullable();
+  await knex.schema.createTable('branch_classes_table', (table) => {
+    table.uuid('id').primary();
+    table.uuid('org_id').notNullable();
+    table.uuid('branch_id').notNullable();
     table.uuid('class_id').notNullable();
-    table.uuid('subject_id').notNullable();
-    table.uuid('academic_session_id').notNullable();
     table.timestamps(true, true);
-  })
+    table.unique(['branch_id', 'class_id']);
+  });
 
-  await knex.schema.createTable('section_subjects_table', (table) => {
-    table.uuid('id').primary().notNullable();
-    table.uuid('section_id').notNullable();
-    table.uuid('subject_id').notNullable();
-    table.uuid('teacher_user_id').nullable();
-    table.timestamps(true, true);
-  })
-
-  await knex.schema.createTable('batch_subjects_table', (table) => {
-    table.uuid('id').primary().notNullable();
-    table.uuid('batch_id').notNullable();
-    table.uuid('subject_id').notNullable();
-    table.uuid('teacher_user_id').nullable();
-    table.timestamps(true, true);
-  })
+  await knex.schema.createTable('branch_subjects_table', (table) => {
+    table.uuid('id').primary();
+    table.uuid('branch_id').notNullable().references('id').inTable('branches');
+    table.uuid('subject_id').notNullable().references('id').inTable('subjects_table');
+    table.unique(['branch_id', 'subject_id']);
+  });
 
   await knex.schema.createTable('organisation_student_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -127,7 +116,7 @@ export async function up(knex: Knex): Promise<void> {
     table.date('enrollment_date').notNullable();
     table.integer('status').notNullable().defaultTo(1);
     table.timestamps(true, true);
-  })
+  });
 
   await knex.schema.createTable('organisation_staff_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -138,8 +127,9 @@ export async function up(knex: Knex): Promise<void> {
     table.date('joining_date').notNullable();
     table.date('leaving_date').nullable();
     table.timestamps(true, true);
-  })
-
+    table.integer('status').notNullable().defaultTo(1);
+    table.unique(['org_id', 'user_id']);
+  });
 
   await knex.schema.createTable('student_attendence_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -151,7 +141,7 @@ export async function up(knex: Knex): Promise<void> {
     table.time('entry_time').nullable();
     table.time('exit_time').nullable();
     table.timestamps(true, true);
-  })
+  });
 
   await knex.schema.createTable('staff_attendence_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -163,7 +153,7 @@ export async function up(knex: Knex): Promise<void> {
     table.time('entry_time').nullable();
     table.time('exit_time').nullable();
     table.timestamps(true, true);
-  })
+  });
 
   await knex.schema.createTable('student_guardian_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -171,28 +161,22 @@ export async function up(knex: Knex): Promise<void> {
     table.uuid('guardian_user_id').notNullable();
     table.string('relation_type').notNullable();
     table.timestamps(true, true);
-  })
-
+  });
 }
 
-// ---------------------------------------------------------------------------
-// down – drop tables in reverse dependency order
-// ---------------------------------------------------------------------------
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTableIfExists('student_attendence_table');
-  await knex.schema.dropTableIfExists('staff_attendence_table');
-  await knex.schema.dropTableIfExists('student_guardian_table');
-  await knex.schema.dropTableIfExists('organisation_staff_table');
-  await knex.schema.dropTableIfExists('organisation_student_table');
-  await knex.schema.dropTableIfExists('batch_subjects_table');
-  await knex.schema.dropTableIfExists('section_subjects_table');
-  await knex.schema.dropTableIfExists('class_subjects_table');
-  await knex.schema.dropTableIfExists('batches_table');
-  await knex.schema.dropTableIfExists('sections_table');
-  await knex.schema.dropTableIfExists('subjects_table');
-  await knex.schema.dropTableIfExists('branches');
-  await knex.schema.dropTableIfExists('classes');
-  await knex.schema.dropTableIfExists('academic_sessions_table');
-  await knex.schema.dropTableIfExists('branches');
-  await knex.schema.dropTableIfExists('organisations');
+  await knex.schema.dropTable('student_guardian_table');
+  await knex.schema.dropTable('staff_attendence_table');
+  await knex.schema.dropTable('student_attendence_table');
+  await knex.schema.dropTable('organisation_staff_table');
+  await knex.schema.dropTable('organisation_student_table');
+  await knex.schema.dropTable('branch_subjects_table');
+  await knex.schema.dropTable('branch_classes_table');
+  await knex.schema.dropTable('subjects_table');
+  await knex.schema.dropTable('batches_table');
+  await knex.schema.dropTable('sections_table');
+  await knex.schema.dropTable('classes');
+  await knex.schema.dropTable('branches');
+  await knex.schema.dropTable('academic_sessions_table');
+  await knex.schema.dropTable('organisations');
 }

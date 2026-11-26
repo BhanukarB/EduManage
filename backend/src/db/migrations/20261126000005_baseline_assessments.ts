@@ -1,8 +1,6 @@
 import type { Knex } from 'knex';
 
-
 export async function up(knex: Knex): Promise<void> {
-
   await knex.schema.createTable('assessments_table', (table) => {
     table.uuid('id').primary().notNullable();
     table.string('internal_id').notNullable();
@@ -28,7 +26,7 @@ export async function up(knex: Knex): Promise<void> {
     table.uuid('id').primary().notNullable();
     table.uuid('assessment_id').notNullable();
     table.uuid('section_id');
-    table.uuid('batch_id');// either 
+    table.uuid('batch_id');
     table.uuid('assigned_by').notNullable();
     table.timestamp('assigned_at').notNullable().defaultTo(knex.fn.now());
     table.string('status').notNullable();
@@ -65,16 +63,11 @@ export async function up(knex: Knex): Promise<void> {
     table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
     table.timestamp('updated_at').notNullable().defaultTo(knex.fn.now());
   });
-
 }
 
-// ---------------------------------------------------------------------------
-// down – drop tables in reverse dependency order
-// ---------------------------------------------------------------------------
 export async function down(knex: Knex): Promise<void> {
-
-  await knex.schema.dropTableIfExists('question_bank_table');
-  await knex.schema.dropTableIfExists('assessment_questions_table');
-  await knex.schema.dropTableIfExists('assessment_targets_table');
-  await knex.schema.dropTableIfExists('assessments_table');
+  await knex.schema.dropTable('question_bank_table');
+  await knex.schema.dropTable('assessment_questions_table');
+  await knex.schema.dropTable('assessment_targets_table');
+  await knex.schema.dropTable('assessments_table');
 }

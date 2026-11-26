@@ -1,6 +1,5 @@
 import type { Knex } from 'knex';
 
-
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('notifications_table', (table) => {
     table.uuid('id').primary().notNullable();
@@ -36,14 +35,10 @@ export async function up(knex: Knex): Promise<void> {
     table.timestamp('sent_at').nullable();
     table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
   });
-
 }
 
-// ---------------------------------------------------------------------------
-// down – drop tables in reverse dependency order
-// ---------------------------------------------------------------------------
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTableIfExists('notification_deliveries_table');
-  await knex.schema.dropTableIfExists('notification_templates_table');
-  await knex.schema.dropTableIfExists('notifications_table');
+  await knex.schema.dropTable('notification_deliveries_table');
+  await knex.schema.dropTable('notification_templates_table');
+  await knex.schema.dropTable('notifications_table');
 }
