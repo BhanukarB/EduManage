@@ -426,29 +426,29 @@ export const GetSubjectByIdAPI = {
 };
 
 export const CreateClassSubjectMappingAPI = {
-  path: '/:orgId/:academicSessionId/class-subjects/create',
+  path: '/:orgId/class-subjects/create',
   endpoint: [
-    `${Service.ORGANISATION_API_PREFIX}:orgId/:academicSessionId/class-subjects/create`,
-    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:academicSessionId/class-subjects/create`,
+    `${Service.ORGANISATION_API_PREFIX}:orgId/class-subjects/create`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/class-subjects/create`,
   ],
   method: RequestMethod.POST,
-  argument: ['orgId', 'academicSessionId'],
+  argument: ['orgId'],
   permissions: [PermissionEnum.CREATE_CLASS_SUBJECT_MAPPING],
   service: Service.ORGANISATION_SERVICE,
-  sample: '/<orgId>/<academicSessionId>/class-subjects/create',
+  sample: '/<orgId>/class-subjects/create',
 };
 
 export const UpdateClassSubjectMappingAPI = {
-  path: '/:orgId/:academicSessionId/class-subjects/update/:id',
+  path: '/:orgId/class-subjects/update/:id',
   endpoint: [
-    `${Service.ORGANISATION_API_PREFIX}:orgId/:academicSessionId/class-subjects/update/:id`,
-    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:academicSessionId/class-subjects/update/:id`,
+    `${Service.ORGANISATION_API_PREFIX}:orgId/class-subjects/update/:id`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/class-subjects/update/:id`,
   ],
   method: RequestMethod.PUT,
-  argument: ['orgId', 'academicSessionId', 'id'],
+  argument: ['orgId', 'id'],
   permissions: [PermissionEnum.UPDATE_CLASS_SUBJECT_MAPPING],
   service: Service.ORGANISATION_SERVICE,
-  sample: '/<orgId>/<academicSessionId>/class-subjects/update/<id>',
+  sample: '/<orgId>/class-subjects/update/<id>',
 };
 
 export const CreateSectionSubjectMappingAPI = {

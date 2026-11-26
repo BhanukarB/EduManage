@@ -440,7 +440,7 @@ export class OrganisationsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
-    @Body() data: CreateClassBatchRequestDto,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })) data: CreateClassBatchRequestDto,
   ): Promise<ClassBatchDto> {
     this.assertOrganisationAccess(req, orgId);
     this.assertBranchAccess(req, orgId, branchId);
@@ -458,7 +458,7 @@ export class OrganisationsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
-    @Body() data: UpdateClassBatchDto,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })) data: UpdateClassBatchDto,
   ): Promise<ClassBatchDto> {
     this.assertOrganisationAccess(req, orgId);
     this.assertBranchAccess(req, orgId, branchId);
@@ -613,16 +613,15 @@ export class OrganisationsController {
   @Post(CreateClassSubjectMappingAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...CreateClassSubjectMappingAPI.permissions)
-  @ApiOperation({ summary: 'Map a subject to a class for an academic session' })
+  @ApiOperation({ summary: 'Map a subject to a class' })
   @ApiResponse({ status: 201, type: ClassSubjectMappingDto })
   createClassSubjectMapping(
     @Req() req: any,
     @Param('orgId', ParseUUIDPipe) orgId: string,
-    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Body() data: CreateClassSubjectMappingRequestDto,
   ): Promise<ClassSubjectMappingDto> {
     this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.createClassSubjectMapping({ ...data, orgId, academicSessionId });
+    return this.organisationsService.createClassSubjectMapping({ ...data, orgId });
   }
 
   @Put(UpdateClassSubjectMappingAPI.path)
@@ -633,12 +632,11 @@ export class OrganisationsController {
   updateClassSubjectMapping(
     @Req() req: any,
     @Param('orgId', ParseUUIDPipe) orgId: string,
-    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: UpdateClassSubjectMappingDto,
   ): Promise<ClassSubjectMappingDto> {
     this.assertOrganisationAccess(req, orgId);
-    return this.organisationsService.updateClassSubjectMapping(orgId, academicSessionId, id, data);
+    return this.organisationsService.updateClassSubjectMapping(orgId, id, data);
   }
 
   // section subject mappings

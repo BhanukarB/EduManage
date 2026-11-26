@@ -200,11 +200,10 @@ export class OrganisationsService {
 
   async updateClassSubjectMapping(
     orgId: string,
-    academicSessionId: string,
     id: string,
     data: UpdateClassSubjectMappingDto,
   ): Promise<ClassSubjectMappingDto> {
-    return this.organisationsRepository.updateClassSubjectMapping(orgId, academicSessionId, id, data);
+    return this.organisationsRepository.updateClassSubjectMapping(orgId, id, data);
   }
 
   async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {

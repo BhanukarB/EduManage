@@ -1,14 +1,10 @@
 import { PartialType, ApiProperty, OmitType } from '@nestjs/swagger';
-import { IsOptional, IsUUID, Matches } from 'class-validator';
+import { IsBoolean, IsOptional, IsUUID, Matches } from 'class-validator';
 
 export class CreateClassSubjectMappingDto {
   @ApiProperty()
   @IsUUID()
   orgId: string;
-
-  @ApiProperty()
-  @IsUUID()
-  academicSessionId: string;
 
   @ApiProperty()
   @IsUUID()
@@ -39,20 +35,24 @@ export class CreateClassSubjectMappingDto {
   @ApiProperty({ example: '10:00' })
   @Matches(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/)
   classEndTime: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class CreateClassSubjectMappingRequestDto extends OmitType(CreateClassSubjectMappingDto, [
-  'orgId', 'academicSessionId',
+  'orgId',
 ] as const) {}
 
 export class UpdateClassSubjectMappingDto extends PartialType(OmitType(CreateClassSubjectMappingDto, [
-  'orgId', 'academicSessionId',
+  'orgId',
 ] as const)) {}
 
 export class ClassSubjectMappingDto {
   @ApiProperty() id: string;
   @ApiProperty() orgId: string;
-  @ApiProperty() academicSessionId: string;
   @ApiProperty() branchId: string;
   @ApiProperty() classId: string;
   @ApiProperty({ nullable: true }) sectionId: string | null;
@@ -60,5 +60,6 @@ export class ClassSubjectMappingDto {
   @ApiProperty() subjectId: string;
   @ApiProperty() classStartTime: string;
   @ApiProperty() classEndTime: string;
+  @ApiProperty() isActive: boolean;
   @ApiProperty() createdAt: Date;
 }
