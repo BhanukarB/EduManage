@@ -7,6 +7,7 @@ import MenuOutlined from "@mui/icons-material/MenuOutlined";
 import MenuOpenOutlined from "@mui/icons-material/MenuOpenOutlined";
 import DashboardOutlined from "@mui/icons-material/DashboardOutlined";
 import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
+import CalendarMonthOutlined from "@mui/icons-material/CalendarMonthOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import SchoolOutlined from "@mui/icons-material/SchoolOutlined";
 import AdminPanelSettingsOutlined from "@mui/icons-material/AdminPanelSettingsOutlined";
@@ -20,6 +21,7 @@ const navigation = {
   organisation: [
     dashboard,
     { label: "Branches", href: "/branches", icon: <ApartmentOutlined /> },
+    { label: "Academic Sessions", href: "/academic-sessions", icon: <CalendarMonthOutlined /> },
     { label: "Members", href: "/members", icon: <GroupsOutlined /> },
     { label: "Subjects", href: "/subjects", icon: <SchoolOutlined /> },
   ],

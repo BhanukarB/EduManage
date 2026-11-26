@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { PageHeader } from "@/components/common/page-header";
+import type { AcademicSession } from "@/types/domain";
 
 interface Contact {
   firstName: string;
@@ -61,6 +62,16 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [sessions, setSessions] = useState<AcademicSession[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    readApi<AcademicSession[]>(`organisations/${orgId}/academic-sessions`, 30_000)
+      .then((data) => { if (active) setSessions(data); })
+      .catch(() => { if (active) setSessions([]); });
+    return () => { active = false; };
+  }, [orgId]);
+  const groupSession = group && sessions ? sessions.find((s) => s.id === group.academicSessionId) : undefined;
+  const isActiveSession = groupSession ? groupSession.status === 1 : true;
   useEffect(() => {
     let active = true;
     readApi<ListPage>(path).then(data => {
@@ -114,7 +125,12 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
       <Typography color="text.primary">Students</Typography>
     </Breadcrumbs>
     <PageHeader title="Student list" subtitle={group && `${group.className} · ${group.name}`}
-      action={group && <Button variant="contained" onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button>} />
+      action={group && <Button variant="contained" disabled={!isActiveSession} onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button>} />
+    {group && !isActiveSession && (
+      <Alert severity="info" sx={{ mb: 2 }}>
+        This group belongs to an inactive academic session. Students can only be enrolled in the active academic session.
+      </Alert>
+    )}
     {confirmation && <Alert severity="success" sx={{ mb: 2 }}>{confirmation}</Alert>}
     {current?.error ? <Alert severity="error">{current.error}</Alert> : !list ? <CircularProgress aria-label="Loading students" /> :
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>

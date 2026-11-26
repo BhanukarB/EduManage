@@ -69,7 +69,7 @@ const classBatchColumns = [
 
 const academicSessionColumns = [
     'id', 'org_id as orgId', 'session_name as sessionName', 'start_date as startDate',
-    'end_date as endDate', 'created_at as createdAt', 'updated_at as updatedAt',
+    'end_date as endDate', 'status', 'created_at as createdAt', 'updated_at as updatedAt',
 ];
 
 const subjectColumns = [
@@ -126,11 +126,12 @@ export class OrganisationsRepository {
             if (!organisation) throw new NotFoundException('Organisation not found');
             const [branch, session, classRecord] = await Promise.all([
                 trx('branches').where({ id: data.branchId, org_id: orgId }).first('id'),
-                trx('academic_sessions_table').where({ id: data.academicSessionId, org_id: orgId }).first('id'),
+                trx('academic_sessions_table').where({ id: data.academicSessionId, org_id: orgId }).first('id', 'status'),
                 trx('classes').where({ id: data.classId, org_id: orgId }).first('id'),
             ]);
             if (!branch) throw new NotFoundException('Branch not found for this organisation');
             if (!session) throw new NotFoundException('Academic session not found for this organisation');
+            if (session.status !== 1) throw new BadRequestException('Changes can only be made for the active academic session');
             if (!classRecord) throw new NotFoundException('Class not found for this organisation');
 
             if (data.sectionId) {
@@ -221,7 +222,7 @@ export class OrganisationsRepository {
     }
 
     async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {
-        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId);
+        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
         const subject = await knexConnection('subjects_table').where({ id: data.subjectId, organisation_id: data.orgId }).first('id');
         if (!subject) throw new NotFoundException('Subject not found for this organisation');
         const section = await knexConnection('sections_table as s')
@@ -245,7 +246,7 @@ export class OrganisationsRepository {
         orgId: string, branchId: string, academicSessionId: string, id: string,
         data: UpdateSectionSubjectMappingDto,
     ): Promise<SectionSubjectMappingDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId);
+        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
         const current = await knexConnection('section_subjects_table as ss')
             .join('sections_table as s', 'ss.section_id', 's.id')
             .join('classes as c', 's.class_id', 'c.id')
@@ -275,7 +276,7 @@ export class OrganisationsRepository {
     }
 
     async createBatchSubjectMapping(data: CreateBatchSubjectMappingDto): Promise<BatchSubjectMappingDto> {
-        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId);
+        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
         const subject = await knexConnection('subjects_table').where({ id: data.subjectId, organisation_id: data.orgId }).first('id');
         if (!subject) throw new NotFoundException('Subject not found for this organisation');
         const batch = await knexConnection('batches_table')
@@ -296,7 +297,7 @@ export class OrganisationsRepository {
         orgId: string, branchId: string, academicSessionId: string, id: string,
         data: UpdateBatchSubjectMappingDto,
     ): Promise<BatchSubjectMappingDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId);
+        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
         const current = await knexConnection('batch_subjects_table as bs')
             .join('batches_table as b', 'bs.batch_id', 'b.id')
             .where({ 'bs.id': id, 'bs.academic_session_id': academicSessionId, 'b.org_id': orgId, 'b.branch_id': branchId, 'b.academic_session_id': academicSessionId })
@@ -448,16 +449,33 @@ export class OrganisationsRepository {
         return subject;
     }
 
+    private assertValidSessionDates(startDate: string | Date, endDate: string | Date): void {
+        const start = new Date(startDate).getTime();
+        const end = new Date(endDate).getTime();
+        if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
+            throw new BadRequestException('Academic session end date must be on or after start date');
+        }
+    }
+
     async createOrgAcademicSession(data: CreateOrgAcademicSessionDto): Promise<OrgAcademicSessionDto> {
         const organisation = await knexConnection('organisations').where({ id: data.orgId }).first('id');
         if (!organisation) throw new NotFoundException('Organisation not found');
-        const [session] = await knexConnection('academic_sessions_table')
-            .insert({
-                id: randomUUID(), org_id: data.orgId, session_name: data.sessionName ?? null,
-                start_date: data.startDate, end_date: data.endDate,
-            })
-            .returning(academicSessionColumns);
-        return session;
+        this.assertValidSessionDates(data.startDate, data.endDate);
+        const status = data.status ?? 1;
+        return knexConnection.transaction(async (trx) => {
+            if (status === 1) {
+                await trx('academic_sessions_table')
+                    .where({ org_id: data.orgId, status: 1 })
+                    .update({ status: 0, updated_at: knexConnection.fn.now() });
+            }
+            const [session] = await trx('academic_sessions_table')
+                .insert({
+                    id: randomUUID(), org_id: data.orgId, session_name: data.sessionName ?? null,
+                    start_date: data.startDate, end_date: data.endDate, status,
+                })
+                .returning(academicSessionColumns);
+            return session;
+        });
     }
 
     async updateOrgAcademicSession(
@@ -465,18 +483,33 @@ export class OrganisationsRepository {
         id: string,
         data: UpdateOrgAcademicSessionDto,
     ): Promise<OrgAcademicSessionDto> {
+        const existing = await knexConnection('academic_sessions_table')
+            .where({ id, org_id: orgId })
+            .first('id', 'start_date', 'end_date');
+        if (!existing) throw new NotFoundException('Academic session not found for this organisation');
+        if (data.startDate !== undefined || data.endDate !== undefined) {
+            this.assertValidSessionDates(data.startDate ?? existing.start_date, data.endDate ?? existing.end_date);
+        }
         const changes: Record<string, unknown> = {};
         if (data.sessionName !== undefined) changes.session_name = data.sessionName;
         if (data.startDate !== undefined) changes.start_date = data.startDate;
         if (data.endDate !== undefined) changes.end_date = data.endDate;
+        if (data.status !== undefined) changes.status = data.status;
         if (!Object.keys(changes).length) return this.findOrgAcademicSessionById(orgId, id);
         changes.updated_at = knexConnection.fn.now();
-        const [session] = await knexConnection('academic_sessions_table')
-            .where({ id, org_id: orgId })
-            .update(changes)
-            .returning(academicSessionColumns);
-        if (!session) throw new NotFoundException('Academic session not found for this organisation');
-        return session;
+        return knexConnection.transaction(async (trx) => {
+            if (data.status === 1) {
+                await trx('academic_sessions_table')
+                    .where({ org_id: orgId, status: 1 })
+                    .whereNot({ id })
+                    .update({ status: 0, updated_at: knexConnection.fn.now() });
+            }
+            const [session] = await trx('academic_sessions_table')
+                .where({ id, org_id: orgId })
+                .update(changes)
+                .returning(academicSessionColumns);
+            return session;
+        });
     }
 
     async findOrgAcademicSessionList(orgId: string): Promise<OrgAcademicSessionDto[]> {
@@ -485,7 +518,7 @@ export class OrganisationsRepository {
         return knexConnection('academic_sessions_table')
             .where({ org_id: orgId })
             .select(academicSessionColumns)
-            .orderBy('start_date', 'desc');
+            .orderBy([{ column: 'status', order: 'desc' }, { column: 'start_date', order: 'desc' }]);
     }
 
     async findOrgAcademicSessionById(orgId: string, id: string): Promise<OrgAcademicSessionDto> {
@@ -506,7 +539,7 @@ export class OrganisationsRepository {
     }
 
     async createClassBatch(data: CreateClassBatchDto): Promise<ClassBatchDto> {
-        const { organisation, branch } = await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId);
+        const { organisation, branch } = await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
         if (organisation.type !== OrganisationType.COACHING || branch.type !== OrganisationType.COACHING) {
             throw new BadRequestException('Batches can only be created for coaching organisations');
         }
@@ -532,7 +565,7 @@ export class OrganisationsRepository {
         academicSessionId: string,
         data: UpdateClassBatchDto,
     ): Promise<ClassBatchDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId);
+        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
         const existing = await knexConnection('batches_table')
             .where({ id, org_id: orgId, branch_id: branchId, academic_session_id: academicSessionId })
             .first('id', 'start_date', 'end_date');
@@ -579,20 +612,24 @@ export class OrganisationsRepository {
         orgId: string,
         branchId: string,
         academicSessionId: string,
+        requireActiveSession = false,
     ): Promise<{ organisation: { id: string; type: number }; branch: { id: string; type: number } }> {
         const [organisation, branch, academicSession] = await Promise.all([
             knexConnection('organisations').where({ id: orgId }).first('id', 'type'),
             knexConnection('branches').where({ id: branchId, org_id: orgId }).first('id', 'type'),
-            knexConnection('academic_sessions_table').where({ id: academicSessionId, org_id: orgId }).first('id'),
+            knexConnection('academic_sessions_table').where({ id: academicSessionId, org_id: orgId }).first('id', 'status'),
         ]);
         if (!organisation) throw new NotFoundException('Organisation not found');
         if (!branch) throw new NotFoundException('Branch not found for this organisation');
         if (!academicSession) throw new NotFoundException('Academic session not found for this organisation');
+        if (requireActiveSession && academicSession.status !== 1) {
+            throw new BadRequestException('Changes can only be made for the active academic session');
+        }
         return { organisation, branch };
     }
 
     async createClassSection(data: CreateClassSectionDto): Promise<ClassSectionDto> {
-        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId);
+        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
         const classRecord = await knexConnection('classes').where({ id: data.classId, org_id: data.orgId }).first('id');
         if (!classRecord) throw new NotFoundException('Class not found for this organisation');
         const [section] = await knexConnection('sections_table')
@@ -615,7 +652,7 @@ export class OrganisationsRepository {
         academicSessionId: string,
         data: UpdateClassSectionDto,
     ): Promise<ClassSectionDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId);
+        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
         const existing = await knexConnection('sections_table as s')
             .join('classes as c', 's.class_id', 'c.id')
             .where({ 's.id': id, 's.branch_id': branchId, 's.academic_session_id': academicSessionId, 'c.org_id': orgId })

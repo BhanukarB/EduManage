@@ -494,6 +494,7 @@ export class OrganisationsController {
     @Body() data: CreateOrgAcademicSessionRequestDto,
   ): Promise<OrgAcademicSessionDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertNotBranchManager(req);
     return this.organisationsService.createOrgAcademicSession({ ...data, orgId });
   }
 
@@ -509,6 +510,7 @@ export class OrganisationsController {
     @Body() data: UpdateOrgAcademicSessionDto,
   ): Promise<OrgAcademicSessionDto> {
     this.assertOrganisationAccess(req, orgId);
+    this.assertNotBranchManager(req);
     return this.organisationsService.updateOrgAcademicSession(orgId, id, data);
   }
 

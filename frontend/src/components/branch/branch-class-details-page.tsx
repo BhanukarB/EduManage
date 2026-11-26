@@ -30,6 +30,7 @@ interface ClassBatch {
   status?: number;
 }
 interface BatchFormState {
+  academicSessionId: string;
   batchCode: string;
   batchName: string;
   startDate: string;
@@ -40,6 +41,7 @@ interface BatchFormState {
 }
 
 const emptyBatchForm: BatchFormState = {
+  academicSessionId: "",
   batchCode: "",
   batchName: "",
   startDate: "",
@@ -52,6 +54,12 @@ const emptyBatchForm: BatchFormState = {
 function formatDateLabel(value?: string): string | null {
   if (!value) return null;
   return value.length >= 10 ? value.slice(0, 10) : value;
+}
+
+function sessionLabel(session: AcademicSession): string {
+  const base = session.sessionName?.trim() || session.name?.trim() || session.id;
+  if (session.status === undefined) return base;
+  return `${base} (${session.status === 1 ? "Active" : "Inactive"})`;
 }
 
 export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: string; branchId: string; classId: string }): ReactElement {
@@ -68,6 +76,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
   const [relationError, setRelationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<ClassBatch | null>(null);
   const [batchForm, setBatchForm] = useState<BatchFormState>(emptyBatchForm);
   const [batchFormError, setBatchFormError] = useState<string | null>(null);
   const [savingBatch, setSavingBatch] = useState(false);
@@ -106,8 +115,16 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
     let active = true;
     const loadRelations = async (): Promise<void> => {
       try {
-        const session = sessions.find(item => item.id === sessionId) ?? sessions[0];
-        if (!session) return;
+        const session = sessions.find(item => item.id === sessionId)
+          ?? sessions.find(item => item.status === 1)
+          ?? sessions[0];
+        if (!session) {
+          if (active) {
+            setSections([]);
+            setBatches([]);
+          }
+          return;
+        }
         const base = `organisations/${orgId}/${branchId}/${session.id}`;
         if (branch.type === 1) {
           const rows = await readApi<ClassSection[]>(`${base}/class-sections?classId=${encodeURIComponent(classId)}`, 30_000);
@@ -128,17 +145,42 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
 
   const isSchool = branch?.type === 1;
   const relationName = isSchool ? "Sections" : "Batches";
-  const activeSessionId = (sessions?.find(item => item.id === sessionId) ?? sessions?.[0])?.id ?? "";
+  const selectedSession = sessions?.find(item => item.id === sessionId)
+    ?? sessions?.find(item => item.status === 1)
+    ?? sessions?.[0];
+  const activeSessionId = selectedSession?.id ?? "";
+  const isSelectedSessionActive = selectedSession?.status === undefined || selectedSession.status === 1;
+  const formSession = sessions?.find(item => item.id === batchForm.academicSessionId);
+  const isFormSessionActive = formSession ? (formSession.status === undefined || formSession.status === 1) : false;
 
-  const openBatchDialog = (): void => {
-    setBatchForm(emptyBatchForm);
+  const openBatchDialog = (batch?: ClassBatch): void => {
+    setEditingBatch(batch ?? null);
+    setBatchForm(batch ? {
+      academicSessionId: batch.academicSessionId,
+      batchCode: batch.batchCode,
+      batchName: batch.batchName ?? "",
+      startDate: formatDateLabel(batch.startDate) ?? "",
+      endDate: formatDateLabel(batch.endDate) ?? "",
+      capacity: String(batch.capacity),
+      dailyStartTime: batch.dailyStartTime ?? "",
+      dailyEndTime: batch.dailyEndTime ?? "",
+    } : {
+      ...emptyBatchForm,
+      academicSessionId: activeSessionId,
+    });
     setBatchFormError(null);
     setBatchDialogOpen(true);
   };
 
-  const createBatch = async (): Promise<void> => {
-    if (!activeSessionId) {
-      setBatchFormError("An academic session is required before creating a batch.");
+  const saveBatch = async (): Promise<void> => {
+    const targetSessionId = editingBatch ? editingBatch.academicSessionId : batchForm.academicSessionId;
+    if (!targetSessionId) {
+      setBatchFormError("An academic session is required before saving a batch.");
+      return;
+    }
+    const targetSession = sessions?.find((item) => item.id === targetSessionId);
+    if (targetSession && targetSession.status !== undefined && targetSession.status !== 1) {
+      setBatchFormError("Changes can only be made for the active academic session.");
       return;
     }
     const batchCode = batchForm.batchCode.trim();
@@ -156,7 +198,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
     setBatchFormError(null);
     try {
       const payload = {
-        classId,
+        ...(editingBatch ? {} : { classId }),
         batchCode,
         batchName: batchForm.batchName.trim() || null,
         startDate: batchForm.startDate,
@@ -165,15 +207,27 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
         ...(batchForm.dailyStartTime ? { dailyStartTime: batchForm.dailyStartTime } : {}),
         ...(batchForm.dailyEndTime ? { dailyEndTime: batchForm.dailyEndTime } : {}),
       };
-      const created = await api<ClassBatch>(
-        `organisations/${orgId}/${branchId}/${activeSessionId}/class-batches/create`,
-        { method: "POST", body: JSON.stringify(payload) },
-      );
-      setBatches((current) => [created, ...current]);
-      setBatchDialogOpen(false);
-      setNotice("Batch created.");
+      if (editingBatch) {
+        const updated = await api<ClassBatch>(
+          `organisations/${orgId}/${branchId}/${targetSessionId}/class-batches/update/${editingBatch.id}`,
+          { method: "PUT", body: JSON.stringify(payload) },
+        );
+        setBatches((current) => current.map((row) => (row.id === updated.id ? updated : row)));
+        setBatchDialogOpen(false);
+        setNotice("Batch updated.");
+      } else {
+        const created = await api<ClassBatch>(
+          `organisations/${orgId}/${branchId}/${targetSessionId}/class-batches/create`,
+          { method: "POST", body: JSON.stringify(payload) },
+        );
+        if (targetSessionId === activeSessionId) {
+          setBatches((current) => [created, ...current]);
+        }
+        setBatchDialogOpen(false);
+        setNotice("Batch created.");
+      }
     } catch (reason) {
-      setBatchFormError(extractErrorMessage(reason, "Could not create batch."));
+      setBatchFormError(extractErrorMessage(reason, editingBatch ? "Could not update batch." : "Could not create batch."));
     } finally {
       setSavingBatch(false);
     }
@@ -192,16 +246,39 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 1 }}>
             <Typography variant="h6" fontWeight={700}>{relationName}</Typography>
             {!isSchool && (
-              <Button variant="contained" size="small" disabled={relationsLoading || !activeSessionId} onClick={openBatchDialog}>
+              <Button variant="contained" size="small" disabled={relationsLoading || !activeSessionId || !isSelectedSessionActive} onClick={() => openBatchDialog()}>
                 Add batch
               </Button>
             )}
           </Stack>
-          {sessions && sessions.length > 1 && <TextField select size="small" label="Academic session" sx={{ my: 2, minWidth: 180 }} value={sessionId || sessions[0].id} onChange={event => {
-              setRelationsLoading(true);
-              setRelationError(null);
-              setSessionId(event.target.value);
-            }}>{sessions.map(session => <MenuItem key={session.id} value={session.id}>{session.sessionName || session.name || session.id}</MenuItem>)}</TextField>}
+          {sessions && sessions.length > 0 && (
+            <TextField
+              select
+              size="small"
+              label="Academic session"
+              sx={{ my: 2, minWidth: 240 }}
+              value={activeSessionId}
+              onChange={(event) => {
+                setRelationsLoading(true);
+                setRelationError(null);
+                setSessionId(event.target.value);
+              }}
+            >
+              {sessions.map((session) => (
+                <MenuItem key={session.id} value={session.id}>{sessionLabel(session)}</MenuItem>
+              ))}
+            </TextField>
+          )}
+          {sessions && sessions.length === 0 && (
+            <Alert severity="info" sx={{ my: 2 }}>
+              No academic sessions have been created for this organisation yet.
+            </Alert>
+          )}
+          {selectedSession && !isSelectedSessionActive && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Viewing an inactive academic session. You can browse records, but adding or updating data is only allowed in the active academic session.
+            </Alert>
+          )}
           {relationError ? <Alert severity="error">{relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map((section) => <ListItemButton key={section.id} divider component={Link} href={`/classes/${classId}/sections/${section.id}/students${contextQuery}`}><ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? (
             <TableContainer sx={{ border: "1px solid", borderColor: "grey.300", borderRadius: 2, overflowX: "auto" }}>
               <Table aria-label="Batches" sx={{ minWidth: 620 }}>
@@ -212,6 +289,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                     <TableCell scope="col">Start date</TableCell>
                     <TableCell scope="col">End date</TableCell>
                     <TableCell scope="col">Capacity</TableCell>
+                    <TableCell scope="col" align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -264,6 +342,11 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                         <TableCell>{start}</TableCell>
                         <TableCell>{end}</TableCell>
                         <TableCell>{batch.capacity}</TableCell>
+                        <TableCell align="right" onClick={(event) => event.stopPropagation()}>
+                          <Button size="small" disabled={!isSelectedSessionActive} onClick={() => openBatchDialog(batch)}>
+                            Edit
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -276,10 +359,28 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
         </Paper>
       </>}
       <Dialog open={batchDialogOpen} onClose={() => !savingBatch && setBatchDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Create batch</DialogTitle>
+        <DialogTitle>{editingBatch ? "Update batch" : "Create batch"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {batchFormError && <Alert severity="error">{batchFormError}</Alert>}
+            {!editingBatch && sessions && sessions.length > 0 && (
+              <TextField
+                select
+                required
+                label="Academic session"
+                value={batchForm.academicSessionId}
+                onChange={(event) => setBatchForm({ ...batchForm, academicSessionId: event.target.value })}
+              >
+                {sessions.map((session) => (
+                  <MenuItem key={session.id} value={session.id}>{sessionLabel(session)}</MenuItem>
+                ))}
+              </TextField>
+            )}
+            {!editingBatch && formSession && !isFormSessionActive && (
+              <Alert severity="warning">
+                Selected session is inactive. Changes can only be made for the active academic session.
+              </Alert>
+            )}
             <TextField
               required
               label="Batch code"
@@ -343,10 +444,17 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
           <Button onClick={() => setBatchDialogOpen(false)} disabled={savingBatch}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={() => void createBatch()}
-            disabled={savingBatch || !batchForm.batchCode.trim() || !batchForm.startDate || !batchForm.endDate || Number(batchForm.capacity) < 1}
+            onClick={() => void saveBatch()}
+            disabled={
+              savingBatch ||
+              (!editingBatch && !isFormSessionActive) ||
+              !batchForm.batchCode.trim() ||
+              !batchForm.startDate ||
+              !batchForm.endDate ||
+              Number(batchForm.capacity) < 1
+            }
           >
-            Create batch
+            {editingBatch ? "Save changes" : "Create batch"}
           </Button>
         </DialogActions>
       </Dialog>

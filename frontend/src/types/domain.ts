@@ -54,3 +54,12 @@ export interface Assignment {
   branchId: string | null;
   branchName: string | null;
 }
+
+export interface AcademicSession {
+  id: string;
+  orgId: string;
+  sessionName?: string | null;
+  startDate: string;
+  endDate: string;
+  status: number;
+}

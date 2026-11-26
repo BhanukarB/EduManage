@@ -1,5 +1,5 @@
 import { PartialType, ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateOrgAcademicSessionDto {
   @ApiProperty()
@@ -19,6 +19,12 @@ export class CreateOrgAcademicSessionDto {
   @ApiProperty({ example: '2027-03-31' })
   @IsDateString()
   endDate: string;
+
+  @ApiPropertyOptional({ example: 1, enum: [0, 1] })
+  @IsOptional()
+  @IsInt()
+  @IsIn([0, 1])
+  status?: number;
 }
 
 export class CreateOrgAcademicSessionRequestDto extends OmitType(CreateOrgAcademicSessionDto, ['orgId'] as const) {}
@@ -42,6 +48,9 @@ export class OrgAcademicSessionDto {
 
   @ApiProperty()
   endDate: string;
+
+  @ApiProperty()
+  status: number;
 
   @ApiProperty()
   createdAt: Date;
