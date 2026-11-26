@@ -2,9 +2,10 @@
 
 import { PanelLoading } from "@/components/common/panel-loading";
 import { type ReactElement, useEffect, useState } from "react";
-import { Alert, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, MenuItem, Snackbar, Stack, TextField, ListItemText, Paper, Typography } from "@mui/material";
+import { Alert, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, MenuItem, Snackbar, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, ListItemText, Paper, Typography } from "@mui/material";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchClasses, readBranchIdentity, type BranchClass, type BranchSummary } from "./branch-data";
 import { PageHeader } from "@/components/common/page-header";
@@ -54,6 +55,7 @@ function formatDateLabel(value?: string): string | null {
 }
 
 export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: string; branchId: string; classId: string }): ReactElement {
+  const router = useRouter();
   const contextQuery = useActiveContextQuery();
   const [sessionId, setSessionId] = useState("");
   const [branch, setBranch] = useState<BranchSummary["branch"] | null>(null);
@@ -200,12 +202,77 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
               setRelationError(null);
               setSessionId(event.target.value);
             }}>{sessions.map(session => <MenuItem key={session.id} value={session.id}>{session.sessionName || session.name || session.id}</MenuItem>)}</TextField>}
-          {relationError ? <Alert severity="error">{relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map((section) => <ListItemButton key={section.id} divider component={Link} href={`/classes/${classId}/sections/${section.id}/students${contextQuery}`}><ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? <List disablePadding>{batches.map((batch) => {
-            const start = formatDateLabel(batch.startDate);
-            const end = formatDateLabel(batch.endDate);
-            const dateRange = start && end ? `${start} to ${end} · ` : "";
-            return <ListItemButton key={batch.id} divider component={Link} href={`/classes/${classId}/batches/${batch.id}/students${contextQuery}`}><ListItemText primary={batch.batchName || batch.batchCode} secondary={`${batch.batchName ? `Batch code: ${batch.batchCode} · ` : ""}${dateRange}Capacity: ${batch.capacity}`} /></ListItemButton>;
-          })}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No batches are linked to this class yet.</Typography>}
+          {relationError ? <Alert severity="error">{relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map((section) => <ListItemButton key={section.id} divider component={Link} href={`/classes/${classId}/sections/${section.id}/students${contextQuery}`}><ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? (
+            <TableContainer sx={{ border: "1px solid", borderColor: "grey.300", borderRadius: 2, overflowX: "auto" }}>
+              <Table aria-label="Batches" sx={{ minWidth: 620 }}>
+                <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700, borderBottom: "1px solid", borderColor: "grey.300" } }}>
+                  <TableRow>
+                    <TableCell scope="col">Batch name</TableCell>
+                    <TableCell scope="col">Batch code</TableCell>
+                    <TableCell scope="col">Start date</TableCell>
+                    <TableCell scope="col">End date</TableCell>
+                    <TableCell scope="col">Capacity</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {batches.map((batch) => {
+                    const batchHref = `/classes/${classId}/batches/${batch.id}/students${contextQuery}`;
+                    const batchName = batch.batchName?.trim() || "";
+                    const start = formatDateLabel(batch.startDate) ?? "—";
+                    const end = formatDateLabel(batch.endDate) ?? "—";
+                    return (
+                      <TableRow
+                        hover
+                        key={batch.id}
+                        onClick={() => router.push(batchHref)}
+                        sx={{
+                          cursor: "pointer",
+                          "& > td": { py: 1.5, borderBottom: "1px solid", borderColor: "grey.300" },
+                          "&:last-child > td": { borderBottom: 0 },
+                        }}
+                      >
+                        <TableCell>
+                          {batchName ? (
+                            <MuiLink
+                              component={Link}
+                              href={batchHref}
+                              underline="hover"
+                              sx={{ fontWeight: 600 }}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {batchName}
+                            </MuiLink>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {batchName ? (
+                            batch.batchCode
+                          ) : (
+                            <MuiLink
+                              component={Link}
+                              href={batchHref}
+                              underline="hover"
+                              sx={{ fontWeight: 600 }}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {batch.batchCode}
+                            </MuiLink>
+                          )}
+                        </TableCell>
+                        <TableCell>{start}</TableCell>
+                        <TableCell>{end}</TableCell>
+                        <TableCell>{batch.capacity}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography color="text.secondary" sx={{ py: 3 }}>No batches are linked to this class yet.</Typography>
+          )}
         </Paper>
       </>}
       <Dialog open={batchDialogOpen} onClose={() => !savingBatch && setBatchDialogOpen(false)} fullWidth maxWidth="sm">
