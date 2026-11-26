@@ -15,7 +15,19 @@ import {
 } from './dtos/class-subject-mapping.dto';
 import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
 import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
-import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import {
+  StudentListQueryDto,
+  StudentListPage,
+  StudentGroupType,
+  AddStudentToOrgDto,
+  AddStudentToOrgResultDto,
+  BranchStudentListQueryDto,
+  BranchStudentListPage,
+  AddExistingStudentToBatchDto,
+  AddExistingStudentToBatchResultDto,
+  UpdateBranchStudentDto,
+  UpdateBranchStudentResultDto,
+} from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto, OrganisationStaffPageDto, StaffPageQueryDto } from './dtos/organisation-staff.dto';
 import { Logger } from '../../logger';
 
@@ -497,6 +509,48 @@ export class OrganisationsService {
       return await this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query);
     } catch (error) {
       this.logger.error(`Failed to fetch student list for ${groupType} ${groupId}`, error);
+      throw error;
+    }
+  }
+
+  async getBranchStudentList(orgId: string, branchId: string, query: BranchStudentListQueryDto): Promise<BranchStudentListPage> {
+    try {
+      return await this.organisationsRepository.getBranchStudentList(orgId, branchId, query);
+    } catch (error) {
+      this.logger.error(`Failed to fetch student list for branch ${branchId}`, error);
+      throw error;
+    }
+  }
+
+  async addExistingStudentToBatch(
+    orgId: string,
+    branchId: string,
+    batchId: string,
+    data: AddExistingStudentToBatchDto,
+  ): Promise<AddExistingStudentToBatchResultDto> {
+    try {
+      const result = await this.organisationsRepository.addExistingStudentToBatch(orgId, branchId, batchId, data);
+      this.logger.log(`Added existing student ${data.studentId} to batch ${batchId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to add existing student ${data.studentId} to batch ${batchId}`, error);
+      throw error;
+    }
+  }
+
+  async updateBranchStudent(
+    orgId: string,
+    branchId: string,
+    studentId: string,
+    data: UpdateBranchStudentDto,
+    requireGroup = false,
+  ): Promise<UpdateBranchStudentResultDto> {
+    try {
+      const result = await this.organisationsRepository.updateBranchStudent(orgId, branchId, studentId, data, requireGroup);
+      this.logger.log(`Updated student ${studentId} in branch ${branchId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to update student ${studentId} in branch ${branchId}`, error);
       throw error;
     }
   }

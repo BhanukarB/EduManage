@@ -24,7 +24,19 @@ import {
 import {
     BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
-import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import {
+    StudentListQueryDto,
+    StudentListPage,
+    StudentGroupType,
+    AddStudentToOrgDto,
+    AddStudentToOrgResultDto,
+    BranchStudentListQueryDto,
+    BranchStudentListPage,
+    AddExistingStudentToBatchDto,
+    AddExistingStudentToBatchResultDto,
+    UpdateBranchStudentDto,
+    UpdateBranchStudentResultDto,
+} from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto, OrganisationStaffPageDto, StaffPageQueryDto } from './dtos/organisation-staff.dto';
 import { RoleType } from '../../utils/enums/roleType';
 import { OrganisationType } from '../../utils/enums/organisation';
@@ -111,6 +123,340 @@ export class OrganisationsRepository {
                 .map(({ firstName, middleName, lastName, phoneNumber }) => ({ firstName, middleName, lastName, phoneNumber })),
         }));
         return { group: { ...group, name: section ? `Section ${code}` : batchName || code }, items, total, page, pageSize };
+    }
+
+    async getBranchStudentList(orgId: string, branchId: string, query: BranchStudentListQueryDto): Promise<BranchStudentListPage> {
+        const latestPerUser = knexConnection('organisation_student_table')
+            .distinctOn('user_id')
+            .where({ org_id: orgId, branch_id: branchId, status: 1 })
+            .modify((qb) => {
+                if (query.classId) qb.andWhere({ class_id: query.classId });
+            })
+            .orderBy([
+                { column: 'user_id', order: 'asc' },
+                { column: 'updated_at', order: 'desc' },
+                { column: 'id', order: 'desc' },
+            ])
+            .select('id');
+
+        const list = knexConnection('organisation_student_table as s')
+            .join('users_table as u', 'u.id', 's.user_id')
+            .join('classes as c', 'c.id', 's.class_id')
+            .leftJoin('batches_table as b', 'b.id', 's.batch_id')
+            .leftJoin('sections_table as sec', 'sec.id', 's.section_id')
+            .where({ 's.org_id': orgId, 's.branch_id': branchId, 's.status': 1 })
+            .whereIn('s.id', latestPerUser);
+
+        if (query.classId) {
+            list.andWhere({ 's.class_id': query.classId });
+        }
+
+        if (query.excludeBatchId) {
+            list.whereNotExists(
+                knexConnection('organisation_student_table as ex')
+                    .whereRaw('ex.user_id = s.user_id')
+                    .andWhere({
+                        'ex.org_id': orgId,
+                        'ex.branch_id': branchId,
+                        'ex.batch_id': query.excludeBatchId,
+                        'ex.status': 1,
+                    }),
+            );
+        }
+
+        const search = query.search?.trim();
+        if (search) {
+            const term = `%${search}%`;
+            list.andWhere((builder) => {
+                builder
+                    .whereRaw("concat_ws(' ', u.first_name, u.middle_name, u.last_name) ILIKE ?", [term])
+                    .orWhere('u.email_id', 'ilike', term)
+                    .orWhere('s.enrollment_number', 'ilike', term);
+            });
+        }
+
+        const count = await list.clone().count('* as total').first();
+        const total = Number(count?.total ?? 0);
+        const { pageSize } = query;
+        const page = Math.min(query.page, Math.max(1, Math.ceil(total / pageSize)));
+        const items = await list
+            .orderBy(['u.first_name', 'u.last_name', 's.enrollment_number', 's.id'])
+            .limit(pageSize)
+            .offset((page - 1) * pageSize)
+            .select(
+                's.id',
+                's.user_id as userId',
+                's.enrollment_number as enrollmentNumber',
+                'u.first_name as firstName',
+                'u.middle_name as middleName',
+                'u.last_name as lastName',
+                'u.email_id as emailId',
+                'u.phone_number as phoneNumber',
+                's.class_id as classId',
+                'c.class_name as className',
+                's.batch_id as batchId',
+                knexConnection.raw('coalesce(b.batch_name, b.batch_code) as "batchName"'),
+                's.section_id as sectionId',
+                'sec.section_code as sectionCode',
+            );
+
+        return { items, total, page, pageSize };
+    }
+
+    async addExistingStudentToBatch(
+        orgId: string,
+        branchId: string,
+        batchId: string,
+        data: AddExistingStudentToBatchDto,
+    ): Promise<AddExistingStudentToBatchResultDto> {
+        const trx = await knexConnection.transaction();
+        try {
+            const batch = await trx('batches_table')
+                .where({ id: batchId, org_id: orgId, branch_id: branchId })
+                .first('id', 'class_id', 'academic_session_id');
+            if (!batch) {
+                throw new NotFoundException('Batch not found for this organisation and branch');
+            }
+
+            const session = await trx('academic_sessions_table')
+                .where({ id: batch.academic_session_id, org_id: orgId })
+                .first('id', 'status');
+            if (!session) {
+                throw new NotFoundException('Academic session not found for this organisation');
+            }
+            if (session.status !== 1) {
+                throw new BadRequestException('Changes can only be made for the active academic session');
+            }
+
+            const existingStudent = await trx('organisation_student_table')
+                .where({ id: data.studentId, org_id: orgId, status: 1 })
+                .first('id', 'user_id', 'branch_id', 'class_id', 'batch_id', 'enrollment_number', 'enrollment_date');
+            if (!existingStudent) {
+                throw new NotFoundException('Student not found in this organisation');
+            }
+            if (existingStudent.branch_id !== branchId) {
+                throw new BadRequestException('Student does not belong to this branch');
+            }
+            if (existingStudent.class_id !== batch.class_id) {
+                throw new BadRequestException('Student does not belong to this class');
+            }
+
+            const alreadyInBatch = await trx('organisation_student_table')
+                .where({
+                    user_id: existingStudent.user_id,
+                    org_id: orgId,
+                    branch_id: branchId,
+                    batch_id: batchId,
+                    status: 1,
+                })
+                .first('id');
+            if (alreadyInBatch) {
+                throw new ConflictException('Student is already enrolled in this batch');
+            }
+
+            const enrollmentDate = data.enrollmentDate ?? existingStudent.enrollment_date;
+            const placement = {
+                id: randomUUID(),
+                academic_session_id: batch.academic_session_id,
+                org_id: orgId,
+                branch_id: branchId,
+                user_id: existingStudent.user_id,
+                class_id: batch.class_id,
+                section_id: null,
+                batch_id: batchId,
+                enrollment_date: enrollmentDate,
+            };
+
+            const [student] = await trx('organisation_student_table')
+                .insert({
+                    ...placement,
+                    enrollment_number: existingStudent.enrollment_number,
+                    status: 1,
+                })
+                .returning([
+                    'id', 'academic_session_id as academicSessionId', 'org_id as orgId',
+                    'branch_id as branchId', 'user_id as userId', 'class_id as classId',
+                    'section_id as sectionId', 'batch_id as batchId', 'enrollment_number as enrollmentNumber',
+                    'enrollment_date as enrollmentDate', 'status', 'created_at as createdAt', 'updated_at as updatedAt',
+                ]);
+
+            await trx('student_enrollment').insert({
+                ...placement,
+                is_active: true,
+            });
+
+            await trx.commit();
+            return { student };
+        } catch (error) {
+            await trx.rollback();
+            if (error instanceof HttpException) throw error;
+            throw new InternalServerErrorException('Unable to add student to batch; all changes were rolled back');
+        }
+    }
+
+    async updateBranchStudent(
+        orgId: string,
+        branchId: string,
+        studentId: string,
+        data: UpdateBranchStudentDto,
+        requireGroup = false,
+    ): Promise<UpdateBranchStudentResultDto> {
+        if (data.sectionId && data.batchId) {
+            throw new BadRequestException('A student cannot be enrolled in both a section and a batch');
+        }
+        if (requireGroup && !data.sectionId && !data.batchId) {
+            throw new BadRequestException('Choose a section or batch for this student.');
+        }
+
+        const trx = await knexConnection.transaction();
+        try {
+            const existing = await trx('organisation_student_table')
+                .where({ id: studentId, org_id: orgId, branch_id: branchId, status: 1 })
+                .first('id', 'user_id', 'academic_session_id', 'class_id', 'section_id', 'batch_id', 'enrollment_date');
+            if (!existing) {
+                throw new NotFoundException('Active student record not found in this branch');
+            }
+
+            const [branch, session, classMapping] = await Promise.all([
+                trx('branches').where({ id: branchId, org_id: orgId }).first('id', 'type'),
+                data.academicSessionId
+                    ? trx('academic_sessions_table').where({ id: data.academicSessionId, org_id: orgId }).first('id', 'status')
+                    : trx('academic_sessions_table').where({ org_id: orgId, status: 1 }).first('id', 'status'),
+                trx('branch_classes_table')
+                    .join('classes as c', 'c.id', 'branch_classes_table.class_id')
+                    .where({
+                        'branch_classes_table.org_id': orgId,
+                        'branch_classes_table.branch_id': branchId,
+                        'branch_classes_table.class_id': data.classId,
+                    })
+                    .first('c.id'),
+            ]);
+
+            if (!branch) throw new NotFoundException('Branch not found for this organisation');
+            if (!session) throw new NotFoundException('Active academic session not found for this organisation');
+            if (session.status !== 1) {
+                throw new BadRequestException('Changes can only be made for the active academic session');
+            }
+            if (!classMapping) throw new NotFoundException('Class not found for this branch');
+
+            if (data.sectionId) {
+                const section = await trx('sections_table').where({
+                    id: data.sectionId,
+                    class_id: data.classId,
+                    branch_id: branchId,
+                    academic_session_id: session.id,
+                }).first('id');
+                if (!section) {
+                    throw new NotFoundException('Section not found for this class, branch, and academic session');
+                }
+            }
+            if (data.batchId) {
+                const batch = await trx('batches_table').where({
+                    id: data.batchId,
+                    org_id: orgId,
+                    branch_id: branchId,
+                    academic_session_id: session.id,
+                    class_id: data.classId,
+                }).first('id');
+                if (!batch) {
+                    throw new NotFoundException('Batch not found for this class, branch, and academic session');
+                }
+
+                const duplicateBatch = await trx('organisation_student_table')
+                    .where({
+                        user_id: existing.user_id,
+                        org_id: orgId,
+                        branch_id: branchId,
+                        batch_id: data.batchId,
+                        status: 1,
+                    })
+                    .whereNot('id', studentId)
+                    .first('id');
+                if (duplicateBatch) {
+                    throw new ConflictException('Student is already enrolled in this batch');
+                }
+            }
+
+            if (data.classId !== existing.class_id) {
+                await trx('organisation_student_table')
+                    .where({ user_id: existing.user_id, org_id: orgId, branch_id: branchId, status: 1 })
+                    .whereNot('id', studentId)
+                    .update({ status: 0, updated_at: trx.fn.now() });
+
+                await trx('student_enrollment')
+                    .where({ user_id: existing.user_id, is_active: true })
+                    .whereNot('id', studentId)
+                    .update({ is_active: false });
+            } else if (data.sectionId) {
+                await trx('student_enrollment')
+                    .where({ user_id: existing.user_id, is_active: true })
+                    .whereNotNull('section_id')
+                    .whereNot('id', studentId)
+                    .update({ is_active: false });
+            }
+
+            const userUpdates: Record<string, unknown> = {};
+            if (data.firstName !== undefined) userUpdates.first_name = data.firstName.trim();
+            if (data.middleName !== undefined) userUpdates.middle_name = data.middleName?.trim() || null;
+            if (data.lastName !== undefined) userUpdates.last_name = data.lastName.trim();
+            if (data.phoneNumber !== undefined) userUpdates.phone_number = data.phoneNumber?.trim() || null;
+            if (Object.keys(userUpdates).length > 0) {
+                userUpdates.updated_at = trx.fn.now();
+                await trx('users_table')
+                    .where({ id: existing.user_id, org_id: orgId })
+                    .update(userUpdates);
+            }
+
+            const [student] = await trx('organisation_student_table')
+                .where({ id: studentId, org_id: orgId, branch_id: branchId, status: 1 })
+                .update({
+                    academic_session_id: session.id,
+                    class_id: data.classId,
+                    section_id: data.sectionId ?? null,
+                    batch_id: data.batchId ?? null,
+                    updated_at: trx.fn.now(),
+                })
+                .returning([
+                    'id', 'academic_session_id as academicSessionId', 'org_id as orgId',
+                    'branch_id as branchId', 'user_id as userId', 'class_id as classId',
+                    'section_id as sectionId', 'batch_id as batchId', 'enrollment_number as enrollmentNumber',
+                    'enrollment_date as enrollmentDate', 'status', 'created_at as createdAt', 'updated_at as updatedAt',
+                ]);
+
+            const enrollmentRow = await trx('student_enrollment').where({ id: studentId }).first('id');
+            if (enrollmentRow) {
+                await trx('student_enrollment')
+                    .where({ id: studentId })
+                    .update({
+                        academic_session_id: session.id,
+                        class_id: data.classId,
+                        section_id: data.sectionId ?? null,
+                        batch_id: data.batchId ?? null,
+                        is_active: true,
+                    });
+            } else {
+                await trx('student_enrollment').insert({
+                    id: studentId,
+                    academic_session_id: session.id,
+                    org_id: orgId,
+                    branch_id: branchId,
+                    user_id: existing.user_id,
+                    class_id: data.classId,
+                    section_id: data.sectionId ?? null,
+                    batch_id: data.batchId ?? null,
+                    enrollment_date: existing.enrollment_date,
+                    is_active: true,
+                });
+            }
+
+            await trx.commit();
+            return { student };
+        } catch (error) {
+            await trx.rollback();
+            if (error instanceof HttpException) throw error;
+            if (error?.code === '23505') throw new ConflictException('Student is already enrolled in this class group');
+            throw new InternalServerErrorException('Unable to update student; all changes were rolled back');
+        }
     }
 
     async addStudentToOrg(orgId: string, data: AddStudentToOrgDto): Promise<AddStudentToOrgResultDto> {
@@ -970,7 +1316,7 @@ export class OrganisationsRepository {
         const classes = this.branchClassesQuery(orgId, branchId);
         const [staffCount, studentCount, classData] = await Promise.all([
             this.organisationStaffQuery(orgId, branchId).clearSelect().count('* as count').first(),
-            knexConnection('organisation_student_table').where({ org_id: orgId, branch_id: branchId, status: 1 }).count('* as count').first(),
+            knexConnection('organisation_student_table').where({ org_id: orgId, branch_id: branchId, status: 1 }).countDistinct('user_id as count').first(),
             countsOnly
                 ? classes.count('* as count').first().then((row) => ({ classCount: Number(row?.count ?? 0) }))
                 : classes.select('id', 'class_name as className', 'class_code as classCode').then((rows) => ({

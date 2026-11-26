@@ -58,6 +58,7 @@ export enum PermissionEnum {
   UPDATE_BATCH_SUBJECT_MAPPING = 'update_batch_subject_mapping',
   VIEW_STUDENT_LIST = 'view_student_list',
   ADD_STUDENT_TO_ORG = 'add_student_to_org',
+  UPDATE_ORG_STUDENT = 'update_org_student',
   GET_ORG_STAFF_LIST = 'get_org_staff_list',
   UPDATE_ORG_STAFF = 'update_org_staff',
   ADD_ORG_STAFF = 'add_org_staff',

@@ -518,6 +518,48 @@ export const AddStudentToOrgAPI = {
 
 
 
+const branchStudentListPath = '/:orgId/branches/:branchId/students';
+export const GetBranchStudentListAPI = {
+  path: branchStudentListPath,
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}${branchStudentListPath.slice(1)}`,
+    `${Service.ORGANISATION_API_PREFIX}v1${branchStudentListPath}`,
+  ],
+  method: RequestMethod.GET,
+  argument: ['orgId', 'branchId'],
+  permissions: [PermissionEnum.VIEW_STUDENT_LIST],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/branches/<branchId>/students',
+};
+
+const addExistingToBatchPath = '/:orgId/branches/:branchId/batches/:batchId/students/add-existing';
+export const AddExistingStudentToBatchAPI = {
+  path: addExistingToBatchPath,
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}${addExistingToBatchPath.slice(1)}`,
+    `${Service.ORGANISATION_API_PREFIX}v1${addExistingToBatchPath}`,
+  ],
+  method: RequestMethod.POST,
+  argument: ['orgId', 'branchId', 'batchId'],
+  permissions: [PermissionEnum.ADD_STUDENT_TO_ORG],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/branches/<branchId>/batches/<batchId>/students/add-existing',
+};
+
+const updateBranchStudentPath = '/:orgId/branches/:branchId/students/:studentId';
+export const UpdateBranchStudentAPI = {
+  path: updateBranchStudentPath,
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}${updateBranchStudentPath.slice(1)}`,
+    `${Service.ORGANISATION_API_PREFIX}v1${updateBranchStudentPath}`,
+  ],
+  method: RequestMethod.PUT,
+  argument: ['orgId', 'branchId', 'studentId'],
+  permissions: [PermissionEnum.UPDATE_ORG_STUDENT],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/branches/<branchId>/students/<studentId>',
+};
+
 const listPath = '/:orgId/branches/:branchId/:groupType/:groupId/students';
 export const GetStudentListAPI = {
   path: listPath,

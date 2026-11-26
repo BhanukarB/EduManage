@@ -17,6 +17,9 @@ import {
   CreateOrgAcademicSessionAPI,
   CreateOrganisationAPI,
   AddStudentToOrgAPI,
+  AddExistingStudentToBatchAPI,
+  UpdateBranchStudentAPI,
+  GetBranchStudentListAPI,
   GetStudentListAPI,
   AddOrganisationStaffAPI,
   AssignBranchSubjectAPI,
@@ -71,7 +74,19 @@ import {
 import {
   BatchSubjectMappingDto, CreateBatchSubjectMappingRequestDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
-import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
+import {
+  StudentListQueryDto,
+  StudentListPage,
+  StudentGroupType,
+  AddStudentToOrgDto,
+  AddStudentToOrgResultDto,
+  BranchStudentListQueryDto,
+  BranchStudentListPage,
+  AddExistingStudentToBatchDto,
+  AddExistingStudentToBatchResultDto,
+  UpdateBranchStudentDto,
+  UpdateBranchStudentResultDto,
+} from './dtos/add-student-to-org.dto';
 import { OrganisationsService } from './organisations.service';
 
 @ApiTags('organisations')
@@ -707,6 +722,55 @@ export class OrganisationsController {
   ): Promise<BatchSubjectMappingDto> {
     this.assertOrganisationAccess(req, orgId);
     return this.organisationsService.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
+  }
+
+  @Get(GetBranchStudentListAPI.path)
+  @Permissions(...GetBranchStudentListAPI.permissions)
+  @ApiOperation({ summary: 'List active students belonging to a branch' })
+  getBranchStudentList(
+    @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: BranchStudentListQueryDto,
+  ): Promise<BranchStudentListPage> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.getBranchStudentList(orgId, branchId, query);
+  }
+
+  @Post(AddExistingStudentToBatchAPI.path)
+  @Permissions(...AddExistingStudentToBatchAPI.permissions)
+  @ApiOperation({ summary: 'Add an existing student of the same branch to a batch' })
+  @ApiResponse({ status: 201, type: AddExistingStudentToBatchResultDto })
+  addExistingStudentToBatch(
+    @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+    @Body(new ValidationPipe({ whitelist: true })) data: AddExistingStudentToBatchDto,
+  ): Promise<AddExistingStudentToBatchResultDto> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.addExistingStudentToBatch(orgId, branchId, batchId, data);
+  }
+
+  @Put(UpdateBranchStudentAPI.path)
+  @Permissions(...UpdateBranchStudentAPI.permissions)
+  @ApiOperation({ summary: 'Update a student user and move them to another class or batch/section' })
+  @ApiResponse({ status: 200, type: UpdateBranchStudentResultDto })
+  updateBranchStudent(
+    @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })) data: UpdateBranchStudentDto,
+  ): Promise<UpdateBranchStudentResultDto> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.updateBranchStudent(
+      orgId,
+      branchId,
+      studentId,
+      data,
+      req.user.roles.includes('branch_manager'),
+    );
   }
 
   @Get(GetStudentListAPI.path)

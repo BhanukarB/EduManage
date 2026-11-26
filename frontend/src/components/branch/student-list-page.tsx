@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactElement } from "react";
-import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Breadcrumbs, Link as MuiLink, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, ListItemText, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from "@mui/material";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 
 import Link from "next/link";
@@ -28,6 +28,24 @@ interface ListPage {
   page: number;
   pageSize: number;
   total: number;
+}
+interface BranchStudent extends Contact {
+  id: string;
+  userId: string;
+  enrollmentNumber: string;
+  emailId: string | null;
+  classId: string;
+  className: string;
+  batchId: string | null;
+  batchName: string | null;
+  sectionId: string | null;
+  sectionCode: string | null;
+}
+interface BranchStudentPage {
+  items: BranchStudent[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 interface StudentListProps {
   orgId: string;
@@ -58,6 +76,13 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
   const group = list?.group;
   const [selected, setSelected] = useState<Student | null>(null);
   const [adding, setAdding] = useState(false);
+  const [addMode, setAddMode] = useState<"new" | "existing">("new");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [branchStudents, setBranchStudents] = useState<BranchStudent[]>([]);
+  const [branchStudentsLoading, setBranchStudentsLoading] = useState(false);
+  const [branchStudentsError, setBranchStudentsError] = useState("");
+  const [selectedExistingId, setSelectedExistingId] = useState<string>("");
+  const [existingEnrollmentDate, setExistingEnrollmentDate] = useState<string>(() => new Date().toLocaleDateString("en-CA"));
   const [saving, setSaving] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
@@ -104,9 +129,62 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
     }
   }
 
+  useEffect(() => {
+    if (!adding || groupType !== "batches" || addMode !== "existing") return;
+    let active = true;
+    const query = new URLSearchParams({ page: "1", pageSize: "50", classId, excludeBatchId: groupId });
+    if (branchSearch.trim()) query.set("search", branchSearch.trim());
+    setBranchStudentsLoading(true);
+    setBranchStudentsError("");
+    readApi<BranchStudentPage>(`organisations/${orgId}/branches/${branchId}/students?${query}`)
+      .then((data) => {
+        if (!active) return;
+        setBranchStudents(data.items);
+      })
+      .catch((reason) => {
+        if (!active) return;
+        setBranchStudentsError(extractErrorMessage(reason, "Could not load branch students."));
+      })
+      .finally(() => {
+        if (active) setBranchStudentsLoading(false);
+      });
+    return () => { active = false; };
+  }, [adding, addMode, branchId, branchSearch, groupId, groupType, orgId, revision]);
+
+  async function submitExisting(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!group || !selectedExistingId) return;
+    const chosen = branchStudents.find((student) => student.id === selectedExistingId);
+    setSaving(true);
+    setError("");
+    try {
+      await api(`organisations/${orgId}/branches/${branchId}/batches/${groupId}/students/add-existing`, {
+        method: "POST",
+        body: JSON.stringify({
+          studentId: selectedExistingId,
+          ...(existingEnrollmentDate ? { enrollmentDate: existingEnrollmentDate } : {}),
+        }),
+      });
+      setAdding(false);
+      setSelectedExistingId("");
+      setBranchSearch("");
+      setConfirmation(`${chosen ? name(chosen) : "Student"} added to ${group.name}.`);
+      setResult(null);
+      setRevision((value) => value + 1);
+    } catch (reason) {
+      setError(extractErrorMessage(reason, "Could not add student to batch."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function close(): void {
     if (saving) return;
     setAdding(false);
+    setAddMode("new");
+    setSelectedExistingId("");
+    setBranchSearch("");
+    setBranchStudentsError("");
     setSelected(null);
     setError("");
   }
@@ -162,14 +240,87 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
     <Dialog open={adding || Boolean(selected)} fullWidth maxWidth="sm" onClose={close} aria-labelledby="student-dialog-title">
     <DialogTitle id="student-dialog-title">{adding ? "Add student" : selected && name(selected)}</DialogTitle>
     <DialogContent dividers>
-      {error && <Alert severity="error">{error}</Alert>}
-      {adding ? <Stack component="form" id="student-enrollment-form" spacing={2} onSubmit={submit} sx={{ pt: 1 }}>
-        <Typography color="text.secondary">{group?.name}</Typography>
-        {fields.map(([key, label]) => <TextField required key={key} name={key} label={label}
-          type={key === "emailId" ? "email" : ["phoneNumber", "guardianContact"].includes(key) ? "tel" : "text"} />)}
-        <TextField required name="enrollmentDate" label="Enrollment date" type="date"
-          defaultValue={new Date().toLocaleDateString("en-CA")} slotProps={{ inputLabel: { shrink: true } }} />
-      </Stack> : selected ? <Stack spacing={1}>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {adding ? <>
+        {groupType === "batches" && (
+          <Tabs
+            value={addMode}
+            onChange={(_, nextMode: "new" | "existing") => {
+              setAddMode(nextMode);
+              setError("");
+            }}
+            sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
+          >
+            <Tab label="New student" value="new" />
+            <Tab label="Existing student" value="existing" />
+          </Tabs>
+        )}
+        {groupType === "batches" && addMode === "existing" ? (
+          <Stack component="form" id="existing-student-enrollment-form" spacing={2} onSubmit={submitExisting} sx={{ pt: 0.5 }}>
+            <Typography color="text.secondary">{group?.name}</Typography>
+            <TextField
+              label="Search branch students"
+              placeholder="Search by name, email, or enrollment number"
+              value={branchSearch}
+              onChange={(event) => setBranchSearch(event.target.value)}
+              size="small"
+            />
+            {branchStudentsError ? (
+              <Alert severity="error">{branchStudentsError}</Alert>
+            ) : branchStudentsLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                <CircularProgress size={24} aria-label="Loading branch students" />
+              </Box>
+            ) : branchStudents.length ? (
+              <Paper variant="outlined" sx={{ maxHeight: 260, overflowY: "auto" }}>
+                <List disablePadding aria-label="Branch students">
+                  {branchStudents.map((student) => {
+                    const currentPlacement = student.batchName
+                      ? `Current batch: ${student.batchName}`
+                      : student.sectionCode
+                        ? `Current section: ${student.sectionCode}`
+                        : `Class: ${student.className}`;
+                    return (
+                      <ListItemButton
+                        key={student.id}
+                        divider
+                        selected={selectedExistingId === student.id}
+                        onClick={() => setSelectedExistingId(student.id)}
+                      >
+                        <ListItemText
+                          primary={`${name(student)} (${student.enrollmentNumber})`}
+                          secondary={`${student.emailId || "No email"} · ${currentPlacement}`}
+                        />
+                      </ListItemButton>
+                    );
+                  })}
+                </List>
+              </Paper>
+            ) : (
+              <Typography color="text.secondary" sx={{ py: 1 }}>
+                No eligible existing students found in this branch.
+              </Typography>
+            )}
+            <TextField
+              required
+              name="enrollmentDate"
+              label="Enrollment date"
+              type="date"
+              value={existingEnrollmentDate}
+              onChange={(event) => setExistingEnrollmentDate(event.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Stack>
+        ) : (
+          <Stack component="form" id="student-enrollment-form" spacing={2} onSubmit={submit} sx={{ pt: 1 }}>
+            <Typography color="text.secondary">{group?.name}</Typography>
+            {fields.map(([key, label]) => <TextField required key={key} name={key} label={label}
+              type={key === "emailId" ? "email" : ["phoneNumber", "guardianContact"].includes(key) ? "tel" : "text"} />)}
+            <TextField required name="enrollmentDate" label="Enrollment date" type="date"
+              defaultValue={new Date().toLocaleDateString("en-CA")} slotProps={{ inputLabel: { shrink: true } }} />
+          </Stack>
+        )}
+      </> : selected ? <Stack spacing={1}>
         <Typography>Enrollment number: {selected.enrollmentNumber}</Typography>
         <Typography>Email: {selected.emailId || "—"}</Typography>
         <Typography>Phone number: {selected.phoneNumber || "—"}</Typography>
@@ -181,7 +332,15 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
     </DialogContent>
     <DialogActions>
       <Button onClick={close} disabled={saving}>{adding ? "Cancel" : selected ? "Back to students" : "Close"}</Button>
-      {adding && <Button variant="contained" form="student-enrollment-form" type="submit" disabled={saving}>Enroll student</Button>}
+      {adding && (groupType === "batches" && addMode === "existing" ? (
+        <Button variant="contained" form="existing-student-enrollment-form" type="submit" disabled={saving || !selectedExistingId}>
+          Add to batch
+        </Button>
+      ) : (
+        <Button variant="contained" form="student-enrollment-form" type="submit" disabled={saving}>
+          Enroll student
+        </Button>
+      ))}
     </DialogActions>
     </Dialog>
   </BranchWorkspace>;

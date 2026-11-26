@@ -126,3 +126,118 @@ export interface StudentListPage {
   page: number;
   pageSize: number;
 }
+
+export class BranchStudentListQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize = 20;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  classId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  excludeBatchId?: string;
+}
+
+export interface BranchStudentListItem extends StudentGuardianContact {
+  id: string;
+  userId: string;
+  enrollmentNumber: string;
+  emailId: string | null;
+  classId: string;
+  className: string;
+  batchId: string | null;
+  batchName: string | null;
+  sectionId: string | null;
+  sectionCode: string | null;
+}
+
+export interface BranchStudentListPage {
+  items: BranchStudentListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export class AddExistingStudentToBatchDto {
+  @ApiProperty()
+  @IsUUID()
+  studentId: string;
+
+  @ApiPropertyOptional({ example: '2026-04-01' })
+  @IsOptional()
+  @IsDateString()
+  enrollmentDate?: string;
+}
+
+export class AddExistingStudentToBatchResultDto {
+  @ApiProperty({ type: Object })
+  student: Record<string, unknown>;
+}
+
+export class UpdateBranchStudentDto {
+  @ApiPropertyOptional({ example: 'Asha' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: 'K.' })
+  @IsOptional()
+  @IsString()
+  middleName?: string | null;
+
+  @ApiPropertyOptional({ example: 'Sharma' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  lastName?: string;
+
+  @ApiPropertyOptional({ example: '+919876543210' })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string | null;
+
+  @ApiProperty()
+  @IsUUID()
+  classId: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  academicSessionId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  sectionId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  batchId?: string | null;
+}
+
+export class UpdateBranchStudentResultDto {
+  @ApiProperty({ type: Object })
+  student: Record<string, unknown>;
+}
