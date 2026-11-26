@@ -22,6 +22,7 @@ import {
   AssignBranchSubjectAPI,
   CreateSubjectAPI,
   GetBranchByIdAPI,
+  MyTeachingClassesAPI,
   GetBranchListByOrgIdAPI,
   GetOrganisationStaffAPI,
   GetOrganisationStaffPageAPI,
@@ -284,6 +285,14 @@ export class OrganisationsController {
   addOrganisationStaff(@Req() req: any, @Body() data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
     this.assertBranchAccess(req, data.orgId, data.branchId);
     return this.organisationsService.addOrganisationStaff(data);
+  }
+
+  @Get(MyTeachingClassesAPI.path)
+  @Permissions(...MyTeachingClassesAPI.permissions)
+  teachingClasses(@Req() req: { user: { uid: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string, @Param('branchId', ParseUUIDPipe) branchId: string): Promise<ClassDto[]> {
+    if (!req.user.roles.includes('teacher')) throw new ForbiddenException('Select a teaching assignment');
+    return this.organisationsService.teachingClasses(orgId, branchId, req.user.uid);
   }
 
   // classes

@@ -154,3 +154,11 @@ export const CreateApiKeyForUserAPI = {
   service: Service.USER_API_PREFIX,
   sample: '/create/api-key/1',
 }
+
+export const CurrentAssignmentsAPI = {
+  path: '/me/assignments',
+  endpoint: ['/users/me/assignments'],
+  method: RequestMethod.GET,
+  permissions: [],
+  service: Service.USER_SERVICE,
+};

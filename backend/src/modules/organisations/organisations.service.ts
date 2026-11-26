@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { OrganisationsRepository } from './organisations.repository';
 import { RbacService } from '../rbac/rbac.service';
@@ -52,6 +52,10 @@ export class OrganisationsService {
 
   async updateOrg(id: string, data: UpdateOrganisationDto): Promise<OrganisationDto> {
     return this.organisationsRepository.updateOrg(id, data);
+  }
+
+  teachingClasses(orgId: string, branchId: string, userId: string): Promise<ClassDto[]> {
+    return this.organisationsRepository.teachingClasses(orgId, branchId, userId);
   }
 
   async createBranch(data: CreateBranchDto): Promise<BranchDto> {

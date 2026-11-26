@@ -38,9 +38,19 @@ export interface Role {
   name: string;
   roleType?: number | null;
   permission_count?: number;
+  branchId?: string | null;
 }
 
 export interface Permission {
   id: string;
   permission: string;
+}
+
+export interface Assignment {
+  roleId: string;
+  name: string;
+  roleType: number;
+  orgId: string | null;
+  branchId: string | null;
+  branchName: string | null;
 }

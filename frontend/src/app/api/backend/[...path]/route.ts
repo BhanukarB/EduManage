@@ -51,6 +51,10 @@ async function proxy(request: NextRequest, context: RouteContext) {
     const accept = request.headers.get("accept");
     if (contentType) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
+    for (const name of ["x-active-role-id", "x-active-org-id", "x-active-branch-id"]) {
+      const value = request.headers.get(name);
+      if (value) headers.set(name, value);
+    }
     headers.set("authorization", `Bearer ${token}`);
     return fetch(target, {
       method: request.method,

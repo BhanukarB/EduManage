@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards, ValidationPipe } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { GetLoggedInUserDetailsAPI, UpdateOwnPhoneAPI } from '../../utils/routes/users.routes';
+import { Assignment } from "../rbac/access-context";
+import { CurrentAssignmentsAPI, GetLoggedInUserDetailsAPI, UpdateOwnPhoneAPI } from '../../utils/routes/users.routes';
 import { Permissions as RequirePermissions } from '../../utils/decorators/permission.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUserDto, UpdateOwnPhoneDto } from './dtos/user.dto';
@@ -27,6 +28,11 @@ export class UsersController {
   @ApiResponse({ status: 200, type: [UserDto] })
   findAll(@Req() req: any): Promise<UserDto[]> {
     return this.usersService.findAll(req.user.uid, req.user.orgId);
+  }
+
+  @Get(CurrentAssignmentsAPI.path)
+  currentAssignments(@Req() req: { user: { uid: string } }): Promise<Assignment[]> {
+    return this.usersService.currentAssignments(req.user.uid);
   }
 
   @Get(GetLoggedInUserDetailsAPI.path)

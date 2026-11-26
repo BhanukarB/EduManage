@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateRoleDto {
   @ApiProperty({ description: 'Shared role name', example: 'teacher' })
@@ -28,7 +28,29 @@ export class GetRoleDto {
   roleType?: number | null;
 }
 
+export class GrantAssignmentDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  orgId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  userId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  roleId: string;
+
+  @ApiProperty({ format: 'uuid', required: false, description: 'Required for branch-level roles' })
+  @IsOptional()
+  @IsUUID()
+  branchId?: string;
+}
+
 export class AssignRolesDto {
+  @ApiProperty({ required: false }) @IsOptional() @IsUUID()
+  branchId?: string;
+
   @ApiProperty({ description: 'Role UUIDs to assign', example: ['e840d2f2-6ca9-4f8a-94b8-50b614c09331'], type: [String] })
   @IsArray()
   @IsUUID('all', { each: true })
@@ -40,6 +62,13 @@ export class AssignPermissionsToRoleDto {
   @IsArray()
   @IsUUID('all', { each: true })
   permissionIds: string[];
+}
+
+export class UpdateMembershipStatusDto {
+  @ApiProperty({ enum: [0, 1, 2] })
+  @IsInt()
+  @IsIn([0, 1, 2])
+  status: number;
 }
 
 export class RolePermissionsDto {

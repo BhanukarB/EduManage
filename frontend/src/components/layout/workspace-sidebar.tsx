@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactElement } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import MenuOutlined from "@mui/icons-material/MenuOutlined";
 import MenuOpenOutlined from "@mui/icons-material/MenuOpenOutlined";
 import DashboardOutlined from "@mui/icons-material/DashboardOutlined";
@@ -10,7 +10,9 @@ import ApartmentOutlined from "@mui/icons-material/ApartmentOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import SchoolOutlined from "@mui/icons-material/SchoolOutlined";
 import AdminPanelSettingsOutlined from "@mui/icons-material/AdminPanelSettingsOutlined";
-import { Avatar, Box, IconButton, Tooltip, List, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
+import { Avatar, Box, IconButton, Tooltip, List, ListItemButton, ListItemIcon, ListItemText, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { api } from "@/lib/api";
+import type { Assignment } from "@/types/domain";
 
 const dashboard = { label: "Dashboard", href: "/dashboard", icon: <DashboardOutlined /> };
 const navigation = {
@@ -39,12 +41,46 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
   initiallyHidden: boolean;
 }): ReactElement {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [hidden, setHidden] = useState(initiallyHidden);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  useEffect(() => { void api<Assignment[]>("users/me/assignments").then(setAssignments); }, []);
+  const roleAssignments = useMemo(() => {
+    const unique = new Map<string, Assignment>();
+    for (const assignment of assignments) if (!unique.has(assignment.roleId)) unique.set(assignment.roleId, assignment);
+    return [...unique.values()];
+  }, [assignments]);
+  const requestedRole = searchParams.get("role");
+  const selected = assignments.find(item => item.roleId === requestedRole && (!item.branchId || item.branchId === searchParams.get("branch")))
+    ?? assignments.find(item => item.roleId === requestedRole) ?? assignments[0];
+  const selectedRole = selected?.name === "super_admin" ? "super" : selected?.name === "org_admin" ? "organisation"
+    : selected?.name === "branch_manager" || selected?.name === "teacher" ? "branch" : role;
+  const branchOptions = selected ? assignments.filter(item => item.roleId === selected.roleId && item.branchId) : [];
+  useEffect(() => {
+    if (!requestedRole && selected) selectContext(selected.roleId, selected.branchId ?? undefined);
+  // The selected assignment is loaded asynchronously, then normalized into the URL once.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedRole, selected?.roleId]);
   const toggleLabel = hidden ? "Show sidebar" : "Hide sidebar";
-  const compact = role === "organisation";
+  const compact = selectedRole === "organisation";
   let section = "/" + pathname.split("/")[1];
-  if (role === "branch" && section === "/branches") section = "/dashboard";
-  if (role === "super" && section === "/dashboard") section = "/organisations";
+  if (selectedRole === "branch" && section === "/branches") section = "/dashboard";
+  if (selectedRole === "super" && section === "/dashboard") section = "/organisations";
+
+  function selectContext(roleId: string, branchId?: string): void {
+    const eligible = assignments.filter(item => item.roleId === roleId && item.branchId);
+    const validBranchId = branchId && eligible.some(item => item.branchId === branchId) ? branchId : undefined;
+    const match = assignments.find(item => item.roleId === roleId && (!validBranchId || item.branchId === validBranchId))
+      ?? assignments.find(item => item.roleId === roleId);
+    if (!match) return;
+    const params = new URLSearchParams({ role: match.roleId });
+    if (match.orgId) params.set("org", match.orgId);
+    const chosenBranch = validBranchId ? match.branchId : eligible.length === 1 ? eligible[0].branchId : null;
+    if (chosenBranch) params.set("branch", chosenBranch);
+    localStorage.setItem(`cm_context_${roleId}`, chosenBranch ?? "");
+    router.push(`/dashboard?${params.toString()}`);
+  }
 
   function toggleSidebar(): void {
     document.cookie = `cm_sidebar_hidden=${hidden ? "0" : "1"}; Path=/; Max-Age=31536000; SameSite=Lax`;
@@ -71,13 +107,26 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>CLASSMANAGE</Box><Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 900 }}>C</Box>
         </Typography>
         <List disablePadding>
-          {navigation[role].map((item) => (
+          {roleAssignments.length > 0 && <Stack spacing={1.5} sx={{ mb: 2 }}>
+            <TextField select size="small" label="Acting role" value={selected?.roleId ?? ""}
+              onChange={event => selectContext(event.target.value, localStorage.getItem(`cm_context_${event.target.value}`) ?? undefined)}>
+              {roleAssignments.map(item => <MenuItem key={item.roleId} value={item.roleId}>{item.name.replaceAll("_", " ")}</MenuItem>)}
+            </TextField>
+            {branchOptions.length > 0 && <TextField select size="small" label="Branch" value={searchParams.get("branch") ?? ""}
+              onChange={event => selectContext(selected.roleId, event.target.value)}>
+              {branchOptions.length > 1 && <MenuItem value="" disabled>Choose a branch</MenuItem>}
+              {branchOptions.map(item => <MenuItem key={item.branchId} value={item.branchId ?? ""}>{item.branchName}</MenuItem>)}
+            </TextField>}
+          </Stack>}
+          {navigation[selectedRole].filter(item => selected?.name !== "teacher" || ["Dashboard", "Classes"].includes(item.label)).map((item) => {
+            const context = selected ? `?role=${selected.roleId}${selected.orgId ? `&org=${selected.orgId}` : ""}${selected.branchId ? `&branch=${selected.branchId}` : ""}` : "";
+            return (
             <ListItemButton
               key={item.label}
               aria-label={item.label}
               aria-current={section === item.href ? "page" : undefined}
               component={Link}
-              href={item.href}
+              href={`${item.href}${context}`}
               selected={section === item.href}
               sx={{
                 borderRadius: "10px", mb: 0.5,
@@ -92,7 +141,7 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
               <ListItemIcon sx={{ minWidth: { xs: 0, sm: 40 }, color: "inherit", justifyContent: "center" }}>{item.icon}</ListItemIcon>
               <ListItemText primary={item.label} sx={{ display: { xs: "none", sm: "block" } }} />
             </ListItemButton>
-          ))}
+          );})}
         </List>
         <Box sx={{ flexGrow: 1 }} />
         {email && <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems="center" sx={{ px: { sm: 1 }, py: 1.5, mb: 0.5, overflow: "hidden" }}>

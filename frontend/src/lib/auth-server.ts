@@ -43,6 +43,57 @@ interface DashboardContext {
   superUser: boolean;
   organisationId: string | null;
   manager: BranchManagerContext | null;
+  teacher?: (BranchManagerContext & { branchName: string | null }) | null;
+  activeRoleId?: string | null;
+  pendingBranch?: boolean;
+}
+
+interface Assignment {
+  roleId: string;
+  name: string;
+  orgId: string | null;
+  branchId: string | null;
+  branchName: string | null;
+}
+
+export async function requireActiveDashboardContext(params?: Record<string, string | string[] | undefined>): Promise<DashboardContext> {
+  const jar = await requireAuth();
+  const token = jar.get(ACCESS_COOKIE)?.value;
+  if (!token) return requireDashboardContext();
+  const response = await fetch(backendUrl("users/me/assignments"), {
+    headers: { authorization: `Bearer ${token}` }, cache: "no-store",
+  });
+  if (!response.ok) return requireDashboardContext();
+  const assignments = await response.json() as Assignment[];
+  const roleId = typeof params?.role === "string" ? params.role : undefined;
+  const branchId = typeof params?.branch === "string" ? params.branch : undefined;
+  const roleMatches = assignments.filter(item => !roleId || item.roleId === roleId);
+  if (roleId && !branchId && roleMatches.length > 1 && roleMatches.every(item => item.branchId)) {
+    return {
+      email: typeof decodeTokenClaims(token)?.email === "string" ? decodeTokenClaims(token)?.email as string : undefined,
+      superUser: false, organisationId: null, manager: null, teacher: null, activeRoleId: roleId, pendingBranch: true,
+    };
+  }
+  if (roleId && branchId && roleMatches.length > 0 && roleMatches.every(item => item.branchId) &&
+      !roleMatches.some(item => item.branchId === branchId)) {
+    return { superUser: false, organisationId: null, manager: null, teacher: null, activeRoleId: null };
+  }
+  const selected = roleMatches.find(item => !item.branchId || item.branchId === branchId)
+    ?? roleMatches.find(item => item.branchId)
+    ?? assignments.find(item => item.name === "super_admin")
+    ?? assignments.find(item => item.name === "org_admin")
+    ?? assignments.find(item => item.name === "branch_manager")
+    ?? assignments[0];
+  if (!selected) return { superUser: false, organisationId: null, manager: null, teacher: null, activeRoleId: null };
+  const branch = selected.orgId && selected.branchId ? { orgId: selected.orgId, branchId: selected.branchId } : null;
+  return {
+    email: typeof decodeTokenClaims(token)?.email === "string" ? decodeTokenClaims(token)?.email as string : undefined,
+    superUser: selected.name === "super_admin",
+    organisationId: selected.name === "org_admin" ? selected.orgId : null,
+    manager: selected.name === "branch_manager" ? branch : null,
+    teacher: selected.name === "teacher" && branch ? { ...branch, branchName: selected.branchName } : null,
+    activeRoleId: selected.roleId,
+  };
 }
 
 export async function requireDashboardContext(): Promise<DashboardContext> {

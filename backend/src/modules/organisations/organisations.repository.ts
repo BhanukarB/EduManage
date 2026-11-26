@@ -691,6 +691,13 @@ export class OrganisationsRepository {
         return knexConnection('classes').where({ org_id: orgId }).select(classColumns).orderBy('created_at', 'desc');
     }
 
+    async teachingClasses(orgId: string, branchId: string, userId: string): Promise<ClassDto[]> {
+        const duties = knexConnection('teacher_class_table as t').join('class_subjects_table as cs', 'cs.id', 't.class_subject_id')
+            .where({ 't.user_id': userId, 't.is_active': true, 'cs.branch_id': branchId, 'cs.org_id': orgId })
+            .select('cs.class_id');
+        return knexConnection('classes').where({ org_id: orgId }).whereIn('id', duties).select(classColumns).orderBy('class_name');
+    }
+
     async findClassListByBranch(orgId: string, branchId: string, classId?: string): Promise<ClassDto[]> {
         const branch = await knexConnection('branches').where({ id: branchId, org_id: orgId }).first('id');
         if (!branch) throw new NotFoundException('Branch not found for this organisation');
@@ -757,19 +764,31 @@ export class OrganisationsRepository {
 
     private organisationStaffQuery(orgId: string, branchId?: string) {
         return knexConnection('organisation_staff_table as s')
-            .join('users_table as u', 's.user_id', 'u.id')
+            .join('users_table as u', function () {
+                this.on('s.user_id', 'u.id').andOn('s.org_id', 'u.org_id');
+            })
             .where('s.org_id', orgId)
             .whereNot('s.status', 2)
-            .modify((query) => { if (branchId) query.where('s.branch_id', branchId); })
+            .modify(query => {
+                if (branchId) {
+                    const scopes = ['org_id', 'user_id', 'branch_id'];
+                    const roles = knexConnection('user_roles_table').where({ org_id: orgId, branch_id: branchId, is_deleted: false })
+                        .distinctOn(scopes).select(...scopes, 'is_active').orderBy(scopes).orderBy('is_active', 'desc');
+                    query.join(roles.as('m'), function () {
+                    this.on('m.org_id', 's.org_id').andOn('m.user_id', 's.user_id');
+                });
+                }
+            })
             .select(
                 's.id', 's.user_id as userId', 'u.first_name as firstName', 'u.last_name as lastName',
-                'u.email_id as emailId', 'u.phone_number as phoneNumber', 's.branch_id as branchId',
-                's.designation', 's.status',
+                'u.email_id as emailId', 'u.phone_number as phoneNumber', branchId ? 'm.branch_id as branchId' : 's.branch_id as branchId',
+                's.designation', branchId ? 'm.is_active as status' : 's.status',
             );
     }
 
     async findOrganisationStaff(orgId: string, branchId?: string): Promise<OrganisationStaffDto[]> {
-        return this.organisationStaffQuery(orgId, branchId).orderBy('u.first_name');
+        const rows = await this.organisationStaffQuery(orgId, branchId).orderBy('u.first_name');
+        return rows.map((row: OrganisationStaffDto) => ({ ...row, status: Number(row.status) }));
     }
 
     async findOrganisationStaffPage(orgId: string, { branchId, roleId, page, pageSize }: StaffPageQueryDto): Promise<OrganisationStaffPageDto> {
@@ -783,6 +802,7 @@ export class OrganisationsRepository {
             const usersWithRole = knexConnection('user_roles_table as ur')
                 .join('roles_table as r', 'r.id', 'ur.role_id')
                 .where({ 'ur.org_id': orgId, 'r.id': roleId, 'r.role_type': RoleType.BRANCH_LEVEL })
+                .modify(query => { if (branchId) query.where('ur.branch_id', branchId); })
                 .select('ur.user_id');
             staff.whereIn('s.user_id', usersWithRole);
         }
@@ -790,7 +810,7 @@ export class OrganisationsRepository {
             staff.clone().clearSelect().count('* as total').first(),
             staff.orderBy(['u.first_name', 'u.last_name', 's.id']).limit(pageSize).offset((page - 1) * pageSize),
         ]);
-        return { items, total: Number(count?.total ?? 0), page, pageSize };
+        return { items: items.map((row: OrganisationStaffDto) => ({ ...row, status: Number(row.status) })), total: Number(count?.total ?? 0), page, pageSize };
     }
 
     async addOrganisationStaff(data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
@@ -801,7 +821,7 @@ export class OrganisationsRepository {
         try {
             const branch = await trx('branches').where({ id: data.branchId, org_id: data.orgId }).first('id');
             if (!branch) throw new NotFoundException('Branch not found for this organisation');
-            const role = await trx('roles_table').where({ id: data.roleId, role_type: RoleType.BRANCH_LEVEL }).first('id');
+            const role = await trx('roles_table').where({ id: data.roleId, role_type: RoleType.BRANCH_LEVEL }).whereNot('role_name', 'student').first('id');
             if (!role) throw new BadRequestException('Select a valid branch-level role');
             let user = await trx('users_table').whereRaw('lower(email_id) = lower(?)', [data.emailId]).first('id', 'org_id as orgId');
             if (user && user.orgId !== data.orgId) throw new ConflictException('A user with this email already exists outside this organisation');
@@ -813,22 +833,21 @@ export class OrganisationsRepository {
                 }).returning(['id', 'org_id as orgId']);
                 user = createdUser;
             }
-            const existingStaff = await trx('organisation_staff_table').where({ org_id: data.orgId, user_id: user.id }).first('id');
-            if (existingStaff) throw new ConflictException('This user is already a staff member of the organisation');
-            await trx('user_roles_table').insert({
-                id: randomUUID(), user_id: user.id, role_id: data.roleId, org_id: data.orgId,
-            }).onConflict(['user_id', 'role_id', 'org_id']).ignore();
-            const staffId = randomUUID();
+            const person = { org_id: data.orgId, user_id: user.id };
+            const scope = { ...person, branch_id: data.branchId };
             await trx('organisation_staff_table').insert({
-                id: staffId, org_id: data.orgId, branch_id: data.branchId, user_id: user.id,
-                designation: data.designation, joining_date: data.joiningDate, status: 1,
-            });
-            const staff = await trx('organisation_staff_table as s').join('users_table as u', 's.user_id', 'u.id')
-                .where({ 's.org_id': data.orgId, 's.id': staffId })
-                .first('s.id', 's.user_id as userId', 'u.first_name as firstName', 'u.last_name as lastName',
-                    'u.email_id as emailId', 'u.phone_number as phoneNumber', 's.branch_id as branchId', 's.designation', 's.status');
+                id: randomUUID(), ...scope, designation: data.designation,
+                joining_date: data.joiningDate, status: 1,
+            }).onConflict(['org_id', 'user_id']).ignore();
+            const profile = await trx('organisation_staff_table').where(person).forUpdate().first('id', 'status');
+            if (profile.status !== 1) throw new ConflictException('Staff profile is inactive');
+            const membership = await trx('user_roles_table').where(scope).orderBy('is_active', 'desc').first('is_active');
+            if (membership && !membership.is_active) throw new ConflictException('Branch membership is inactive');
+            await trx('user_roles_table').insert({ id: randomUUID(), ...scope, role_id: role.id }).onConflict().ignore();
+            const staff = await this.organisationStaffQuery(data.orgId, data.branchId)
+                .transacting(trx).where('s.id', profile.id).first();
             await trx.commit();
-            return staff;
+            return { ...staff, status: Number(staff.status) };
         } catch (error) {
             await trx.rollback();
             throw error;
@@ -846,13 +865,19 @@ export class OrganisationsRepository {
             const { orgId, staffId } = data;
             const existing = await trx('organisation_staff_table')
                 .where({ id: staffId, org_id: orgId })
-                .modify((query) => {
-                    if (managerBranchId) query.where({ branch_id: managerBranchId }).whereNot('status', 2);
-                })
-                .forUpdate()
-                .first('id');
-            if (managerBranchId && !existing) throw new ForbiddenException('You do not have access to this staff member');
+                .forUpdate().first('id', 'user_id', 'status');
             if (!existing) throw new NotFoundException('Staff member not found for this organisation');
+            if (managerBranchId) {
+                if (data.designation !== undefined || (data.branchId !== undefined && data.branchId !== managerBranchId)) {
+                    throw new ForbiddenException('Shared employment changes require organisation authority');
+                }
+                const scope = { org_id: orgId, user_id: existing.user_id, branch_id: managerBranchId };
+                const staff = await this.organisationStaffQuery(orgId, managerBranchId).transacting(trx).where('s.id', staffId).first();
+                if (!staff) throw new ForbiddenException('You do not have access to this staff member');
+                if (data.status !== undefined) await trx('user_roles_table').where(scope)
+                    .update({ is_active: data.status === 1, is_deleted: data.status === 2 });
+                return { ...staff, status: data.status ?? Number(staff.status) };
+            }
             if (data.branchId) {
                 const branch = await trx('branches').where({ id: data.branchId, org_id: orgId }).first('id');
                 if (!branch) throw new NotFoundException('Branch not found for this organisation');
@@ -882,7 +907,7 @@ export class OrganisationsRepository {
         if (!branch) throw new NotFoundException('Branch not found');
         const classes = this.branchClassesQuery(orgId, branchId);
         const [staffCount, studentCount, classData] = await Promise.all([
-            knexConnection('organisation_staff_table').where({ org_id: orgId, branch_id: branchId }).whereNot('status', 2).count('* as count').first(),
+            this.organisationStaffQuery(orgId, branchId).clearSelect().count('* as count').first(),
             knexConnection('organisation_student_table').where({ org_id: orgId, branch_id: branchId, status: 1 }).count('* as count').first(),
             countsOnly
                 ? classes.count('* as count').first().then((row) => ({ classCount: Number(row?.count ?? 0) }))

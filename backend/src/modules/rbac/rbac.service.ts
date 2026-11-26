@@ -1,10 +1,19 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Assignment } from './access-context';
 import { RbacRepository } from './rbac.repository';
 import { CreateRoleDto, GetRoleDto, RolePermissionsDto } from './dto/rbac.dto';
 
 @Injectable()
 export class RbacService {
   constructor(private readonly rbacRepository: RbacRepository) {}
+
+  activeAssignments(userId: string): Promise<Assignment[]> {
+    return this.rbacRepository.activeAssignments(userId);
+  }
+
+  branchBelongsToOrg(branchId: string, orgId: string): Promise<boolean> {
+    return this.rbacRepository.branchBelongsToOrg(branchId, orgId);
+  }
 
   async createRole(roleData: CreateRoleDto): Promise<GetRoleDto> {
     try { return await this.rbacRepository.createRole(roleData); }
@@ -33,9 +42,17 @@ export class RbacService {
     return this.rbacRepository.getRolePermissions(roleId);
   }
 
-  async assignRolesToUser(userId: string, roleIds: string[], orgId: string): Promise<void> {
+  editAssignment(userId: string, orgId: string, roleId: string, branchId: string | undefined, grant: boolean): Promise<void> {
+    return this.rbacRepository.editAssignment(userId, orgId, roleId, branchId, grant);
+  }
+
+  updateBranchMembership(userId: string, orgId: string, branchId: string, status: number): Promise<void> {
+    return this.rbacRepository.updateBranchMembership(userId, orgId, branchId, status);
+  }
+
+  async assignRolesToUser(userId: string, roleIds: string[], orgId: string, branchId?: string): Promise<void> {
     if (!orgId) throw new BadRequestException('Organisation context is required');
-    try { await this.rbacRepository.assignRolesToUser(userId, roleIds, orgId); }
+    try { await this.rbacRepository.assignRolesToUser(userId, roleIds, orgId, branchId); }
     catch (error) { throw new BadRequestException(error.message); }
   }
 

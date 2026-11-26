@@ -14,14 +14,17 @@ import { api, extractErrorMessage, readApi } from "@/lib/api";
 import { orgTypeLabel } from "@/lib/formatters";
 import type { Organisation, Branch, Staff } from "@/types/domain";
 import { updateStaffMember, type StaffChanges } from "@/features/staff/staff-api";
+import { ManageRolesDialog } from "@/features/staff/manage-roles-dialog";
 import { StaffListRow } from "@/components/common/staff-list-row";
 import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
 import { StatusChip } from "@/components/common/status-chip";
+import { useActiveContextQuery } from "@/lib/active-context";
 type OrganisationOverview = Organisation & { branchCount: number; staffCount: number };
 type BranchForm = Pick<Branch, "branchName" | "branchCode" | "type" | "emailId"> & { phoneNumber: string };
 
 export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; section: "Dashboard" | "Branches" | "Members" }) {
+  const contextQuery = useActiveContextQuery();
   const [memberTab, setMemberTab] = useState(0);
   const [organisation, setOrganisation] = useState<OrganisationOverview | null>(null);
   const [branches, setBranches] = useState<Branch[] | null>(null);
@@ -40,6 +43,7 @@ export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; 
   const loadError = section === "Dashboard" ? overviewError : needsBranches ? branchError ?? (needsStaff ? staffError : null) : null;
   const [error, setError] = useState<string | null>(null);
   const [staffNotice, setStaffNotice] = useState("");
+  const [rolePerson, setRolePerson] = useState<Staff | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -127,7 +131,7 @@ export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; 
                 <Button variant="contained" disabled={!branches} startIcon={<AddOutlined />} onClick={() => { setError(null); setBranchForm({ branchName: "", branchCode: "", type: organisation?.type ?? 1, emailId: "", phoneNumber: "" }); setBranchDialogOpen(true); }}>Add branch</Button>
               </Stack>
               {branches?.length ? <List disablePadding sx={{ display: "grid", gap: 1.5, mt: 2 }}>{branches.map((branch) => <ListItem key={branch.id} disablePadding>
-                <Paper variant="outlined" sx={{ width: "100%", overflow: "hidden" }}><ListItemButton component={Link} href={`/branches/${branch.id}`} sx={{ display: "block", p: { xs: 2, sm: 2.5 }, "&:hover": { bgcolor: "action.hover" } }}>
+                <Paper variant="outlined" sx={{ width: "100%", overflow: "hidden" }}><ListItemButton component={Link} href={`/branches/${branch.id}${contextQuery}`} sx={{ display: "block", p: { xs: 2, sm: 2.5 }, "&:hover": { bgcolor: "action.hover" } }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} sx={{ mb: 2 }}>
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="subtitle1" fontWeight={700} sx={{ overflowWrap: "anywhere" }}>{branch.branchName}</Typography>
@@ -148,7 +152,7 @@ export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; 
             {memberTab === 0 ? staff?.length ? <List disablePadding>{staff.map((person) => <StaffListRow key={person.id} person={person} branches={branches ?? []} disabled={savingStaffId === person.id}
               onDesignationChange={(member, designation) => { if (designation !== member.designation) void updateStaff(member, { designation }); }}
               onBranchChange={(member, branchId) => void updateStaff(member, { branchId })}
-              onStatusChange={(member, status) => void updateStaff(member, { status })} />)}</List> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>No staff members found.</Typography> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Student records will appear here.</Typography>}
+              onStatusChange={(member, status) => void updateStaff(member, { status })} onManageRoles={setRolePerson} />)}</List> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>No staff members found.</Typography> : <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Student records will appear here.</Typography>}
           </Paper>}
         </>}
       </Box>
@@ -164,6 +168,7 @@ export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; 
           <DialogActions><Button onClick={() => setBranchDialogOpen(false)} disabled={savingBranch}>Cancel</Button><Button variant="contained" onClick={() => void createBranch()} disabled={savingBranch || !branchForm.branchName.trim() || !branchForm.branchCode.trim() || !branchForm.emailId.trim()}>{savingBranch ? "Adding…" : "Add branch"}</Button></DialogActions>
       </Dialog>
       <Snackbar open={Boolean(staffNotice)} autoHideDuration={3500} onClose={() => setStaffNotice("")} message={staffNotice} />
+      <ManageRolesDialog open={Boolean(rolePerson)} orgId={orgId} person={rolePerson} branches={branches ?? []} onClose={() => setRolePerson(null)} />
     </Box>
   );
 }

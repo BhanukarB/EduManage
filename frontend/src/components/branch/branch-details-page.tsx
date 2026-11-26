@@ -8,13 +8,14 @@ import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import SchoolOutlined from "@mui/icons-material/SchoolOutlined";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 import type { Branch, Role, Staff } from "@/types/domain";
-import { AddStaffDialog, type AddStaffForm } from "@/features/staff/add-staff-dialog";
+import { AddStaffDialog, type AddStaffForm, type ExistingStaffAssignment } from "@/features/staff/add-staff-dialog";
 import { updateStaffMember, type StaffChanges } from "@/features/staff/staff-api";
 import { StaffListRow } from "@/components/common/staff-list-row";
 import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
 import { StatusChip } from "@/components/common/status-chip";
 import { useRouter } from "next/navigation";
+import { useActiveContextQuery } from "@/lib/active-context";
 import Link from "next/link";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchIdentity, readBranchSummary, type BranchSummary } from "./branch-data";
@@ -22,6 +23,7 @@ import { readBranchIdentity, readBranchSummary, type BranchSummary } from "./bra
 type BranchOption = Pick<Branch, "id" | "branchName">;
 export function BranchDetailsPage({ orgId, branchId, branchManager = false, initialStaffView = false }: { orgId: string; branchId: string; branchManager?: boolean; initialStaffView?: boolean }) {
   const router = useRouter();
+  const contextQuery = useActiveContextQuery();
   const [branchName, setBranchName] = useState<string | null>(null);
   const [summary, setSummary] = useState<BranchSummary | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -94,7 +96,7 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
     void readApi<Role[]>("rbac/branch-roles", 30_000)
       .then((roles) => {
         if (active) {
-          setBranchRoles(roles.filter((role) => role.name !== "student"));
+          setBranchRoles(roles.filter((role) => role.name !== "student" && role.name !== "guardian"));
           setRoleError("");
         }
       })
@@ -116,12 +118,17 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
     finally { setSaving(false); }
   };
 
-  const addStaff = async (staffForm: AddStaffForm): Promise<boolean> => {
+  const addStaff = async (staffForm: AddStaffForm | ExistingStaffAssignment): Promise<boolean> => {
     setSaving(true); setDialogError(null);
     try {
-      await api<Staff>("organisations/staff/add", { method: "POST", body: JSON.stringify({ ...staffForm, orgId, branchId, phoneNumber: staffForm.phoneNumber || null }) });
+      if ("userId" in staffForm) {
+        await api("rbac/assignments", { method: "PUT", body: JSON.stringify({ ...staffForm, orgId, branchId }) });
+      } else {
+        await api<Staff>("organisations/staff/add", { method: "POST", body: JSON.stringify({ ...staffForm, orgId, branchId, phoneNumber: staffForm.phoneNumber || null }) });
+      }
       setRevision((value) => value + 1);
-      setSummary((current) => current ? { ...current, staffCount: current.staffCount + 1 } : current);
+      setSummary(null);
+      setStaffNotice("Staff role assigned.");
       setAddDialogOpen(false);
       return true;
     } catch (reason) {
@@ -133,8 +140,8 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
 
   return <BranchWorkspace maxWidth={1200}>
       <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}>
-          <MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink>
-          {!branchManager && <MuiLink component={Link} href="/branches" underline="hover" color="inherit">Branches</MuiLink>}
+          <MuiLink component={Link} href={`/dashboard${contextQuery}`} underline="hover" color="inherit">Dashboard</MuiLink>
+          {!branchManager && <MuiLink component={Link} href={`/branches${contextQuery}`} underline="hover" color="inherit">Branches</MuiLink>}
           {branchName && <Typography color="text.primary">{branchName}</Typography>}
       </Breadcrumbs>
       {(error || (!staffView && summaryError)) && <Alert severity="error" sx={{ mt: 2 }}>{error ?? summaryError}</Alert>}
@@ -143,7 +150,7 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
       {(!staffView && summary) && <PageHeader title={summary.branch.branchName} subtitle={`Branch code: ${summary.branch.branchCode}`} action={<StatusChip status={summary.branch.status} />} />}
       {(staffView || summary) && <>
         {!staffView && summary ? <><Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
-          <StatCard icon={<GroupsOutlined />} label="Staff" value={summary.staffCount} onClick={() => branchManager ? router.push("/staff") : setStaffView(true)} />
+          <StatCard icon={<GroupsOutlined />} label="Staff" value={summary.staffCount} onClick={() => branchManager ? router.push(`/staff${contextQuery}`) : setStaffView(true)} />
           <StatCard icon={<SchoolOutlined />} label="Students" value={summary.studentCount} />
           <StatCard icon={<ApartmentOutlined />} label="Classes" value={(summary.classCount ?? summary.classes?.length ?? 0)} />
         </Stack>
@@ -157,7 +164,7 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
         </Paper>}
         </> : <>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, mb: 2 }}>
-            <Button onClick={() => branchManager ? router.push("/dashboard") : setStaffView(false)}>Back to branch</Button>
+            <Button onClick={() => branchManager ? router.push(`/dashboard${contextQuery}`) : setStaffView(false)}>Back to branch</Button>
             <Button variant="contained" disabled={staffLoading || !branchName} onClick={() => { setDialogError(null); setAddDialogOpen(true); }}>Add staff</Button>
           </Stack>
           <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: "12px" }}>
@@ -169,6 +176,7 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
               {branchRoles.map((role) => <MenuItem key={role.id} value={role.id}>{role.name}</MenuItem>)}
             </TextField>
             {staffLoading ? <PanelLoading padding={4} /> : staff.length ? <List disablePadding>{staff.map((person) => <StaffListRow key={person.id} person={person} branches={branches} disabled={saving}
+              branchScoped={branchManager}
               onDesignationChange={(member, designation) => { if (designation !== member.designation) void updateStaff(member, { designation }); }}
               onBranchChange={(member, branchId) => void updateStaff(member, { branchId })}
               onStatusChange={(member, status) => void updateStaff(member, { status })} />)}</List> : !error && <Typography color="text.secondary" sx={{ py: 4, textAlign: "center" }}>{roleId ? "No staff in this branch have this role." : "No staff are assigned to this branch."}</Typography>}
@@ -178,7 +186,7 @@ export function BranchDetailsPage({ orgId, branchId, branchManager = false, init
           </Paper>
         </>}
       </>}
-    {branchName && <AddStaffDialog open={addDialogOpen} branchName={branchName} branchRoles={branchRoles}
+    {branchName && addDialogOpen && <AddStaffDialog branchId={branchId} existingStaffOrgId={branchManager ? undefined : orgId} open={addDialogOpen} branchName={branchName} branchRoles={branchRoles}
       rolesLoading={rolesLoading} saving={saving} error={dialogError || roleError || null}
       onClose={() => setAddDialogOpen(false)} onSave={addStaff} />}
     <Snackbar open={Boolean(staffNotice)} autoHideDuration={3500} onClose={() => setStaffNotice("")} message={staffNotice} />

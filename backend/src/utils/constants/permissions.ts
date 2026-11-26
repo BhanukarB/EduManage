@@ -30,6 +30,7 @@ export enum PermissionEnum {
   GET_BRANCH_BY_ID = 'get_branch_by_id',
   UPDATE_BRANCH = 'update_branch',
   GET_BRANCH_LIST_BY_ORG_ID = 'get_branch_list_by_org_id',
+  VIEW_MY_CLASSES = 'view_my_classes',
   CREATE_CLASS = 'create_class',
   UPDATE_CLASS = 'update_class',
   GET_CLASS_LIST_BY_ORG_ID = 'get_class_list_by_org_id',

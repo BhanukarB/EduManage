@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { RoleType } from '../../utils/enums/roleType';
 import { CurrentUserDto, UpdateOwnPhoneDto } from './dtos/user.dto';
+import { Assignment } from "../rbac/access-context";
 import { RbacService } from '../rbac/rbac.service';
 import { CreateUserDto, UpdateUserDto, UserDto } from './dtos/user.dto';
 import { UsersRepository } from './users.repository';
@@ -22,6 +23,10 @@ export class UsersService {
   async findAll(actorId: string, orgId?: string): Promise<UserDto[]> {
     await this.ensureCanManageUsers(actorId, orgId);
     return this.usersRepository.findAll(orgId);
+  }
+
+  currentAssignments(userId: string): Promise<Assignment[]> {
+    return this.rbacService.activeAssignments(userId);
   }
 
   async findCurrentUser(userId: string): Promise<CurrentUserDto> {

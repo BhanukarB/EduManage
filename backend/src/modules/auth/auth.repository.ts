@@ -22,7 +22,7 @@ export class AuthRepository {
       knexConnection('user_roles_table as ur')
         .join('roles_table as r', 'ur.role_id', 'r.id')
         .select('ur.role_id', 'r.role_name')
-        .where('ur.user_id', userId),
+        .where('ur.is_active', true).where('ur.user_id', userId),
       knexConnection('users_table').select('org_id').where({ id: userId }).first(),
       knexConnection('organisation_staff_table').where({ user_id: userId }).first('branch_id'),
     ]);

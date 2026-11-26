@@ -1,11 +1,10 @@
 import { redirect } from "next/navigation";
-import { requireDashboardContext } from "@/lib/auth-server";
+import { requireActiveDashboardContext } from "@/lib/auth-server";
 import { BranchDetailsPage } from "@/components/branch/branch-details-page";
 
-export default async function BranchPage({ params, searchParams }: { params: Promise<{ branchId: string }>; searchParams: Promise<{ view?: string | string[] }> }) {
-  const [{ branchId }, query, { manager, organisationId }] = await Promise.all([
-    params, searchParams, requireDashboardContext(),
-  ]);
+export default async function BranchPage({ params, searchParams }: { params: Promise<{ branchId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [{ branchId }, query] = await Promise.all([params, searchParams]);
+  const { manager, organisationId } = await requireActiveDashboardContext(query);
   if (manager) {
     if (manager.branchId !== branchId) redirect("/dashboard");
     if (query.view === "staff") redirect("/staff");

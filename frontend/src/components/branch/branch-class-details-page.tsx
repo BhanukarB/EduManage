@@ -2,13 +2,14 @@
 
 import { PanelLoading } from "@/components/common/panel-loading";
 import { type ReactElement, useEffect, useState } from "react";
-import { Alert, Breadcrumbs, Button, CircularProgress, Link as MuiLink, List, ListItemButton, MenuItem, TextField, ListItemText, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Breadcrumbs, Button, CircularProgress, Link as MuiLink, List, ListItemButton, MenuItem, TextField, ListItemText, Paper, Typography } from "@mui/material";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import Link from "next/link";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchClasses, readBranchIdentity, type BranchClass, type BranchSummary } from "./branch-data";
 import { PageHeader } from "@/components/common/page-header";
 import { extractErrorMessage, readApi } from "@/lib/api";
+import { useActiveContextQuery } from "@/lib/active-context";
 
 
 
@@ -17,6 +18,7 @@ interface ClassSection { id: string; academicSessionId: string; classId: string;
 interface ClassBatch { id: string; academicSessionId: string; classId: string; batchCode: string; batchName?: string | null; capacity: number; status?: number }
 
 export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: string; branchId: string; classId: string }): ReactElement {
+  const contextQuery = useActiveContextQuery();
   const [sessionId, setSessionId] = useState("");
   const [branch, setBranch] = useState<BranchSummary["branch"] | null>(null);
   const [classItem, setClassItem] = useState<BranchClass | null>(null);
@@ -84,8 +86,8 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
   const isSchool = branch?.type === 1;
   const relationName = isSchool ? "Sections" : "Batches";
   return <BranchWorkspace>
-      <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}><MuiLink component={Link} href="/dashboard" underline="hover" color="inherit">Dashboard</MuiLink><MuiLink component={Link} href="/classes" underline="hover" color="inherit">Classes</MuiLink><Typography color="text.primary">{classItem?.className ?? "Class details"}</Typography></Breadcrumbs>
-      <Button component={Link} href="/classes" startIcon={<ArrowBack />} sx={{ mb: 2 }}>
+      <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 2 }}><MuiLink component={Link} href={`/dashboard${contextQuery}`} underline="hover" color="inherit">Dashboard</MuiLink><MuiLink component={Link} href={`/classes${contextQuery}`} underline="hover" color="inherit">Classes</MuiLink><Typography color="text.primary">{classItem?.className ?? "Class details"}</Typography></Breadcrumbs>
+      <Button component={Link} href={`/classes${contextQuery}`} startIcon={<ArrowBack />} sx={{ mb: 2 }}>
         Back to Classes
       </Button>
       {error && <Alert severity="error">{error}</Alert>}
@@ -97,7 +99,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
               setRelationError(null);
               setSessionId(event.target.value);
             }}>{sessions.map(session => <MenuItem key={session.id} value={session.id}>{session.sessionName || session.name || session.id}</MenuItem>)}</TextField>}
-          {relationError ? <Alert severity="error">{relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map((section) => <ListItemButton key={section.id} divider component={Link} href={`/classes/${classId}/sections/${section.id}/students`}><ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? <List disablePadding>{batches.map((batch) => <ListItemButton key={batch.id} divider component={Link} href={`/classes/${classId}/batches/${batch.id}/students`}><ListItemText primary={batch.batchName || batch.batchCode} secondary={`${batch.batchName ? `Batch code: ${batch.batchCode} · ` : ""}Capacity: ${batch.capacity}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No batches are linked to this class yet.</Typography>}
+          {relationError ? <Alert severity="error">{relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map((section) => <ListItemButton key={section.id} divider component={Link} href={`/classes/${classId}/sections/${section.id}/students${contextQuery}`}><ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? <List disablePadding>{batches.map((batch) => <ListItemButton key={batch.id} divider component={Link} href={`/classes/${classId}/batches/${batch.id}/students${contextQuery}`}><ListItemText primary={batch.batchName || batch.batchCode} secondary={`${batch.batchName ? `Batch code: ${batch.batchCode} · ` : ""}Capacity: ${batch.capacity}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No batches are linked to this class yet.</Typography>}
         </Paper>
       </>}
   </BranchWorkspace>;

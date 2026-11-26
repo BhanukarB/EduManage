@@ -11,7 +11,8 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,test}/**/*.ts\""
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "backfill:staff-branches": "npm run build && node dist/db/tasks/backfill-staff-branches.js"
   },
   "dependencies": {
     "@google-cloud/logging-winston": "^7.3.0",

@@ -6,16 +6,21 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { SuperUserDashboard } from "@/components/super-user/super-user-dashboard";
 import { OrganisationAdminDashboard } from "@/components/org-admin/org-admin-dashboard";
 import { BranchDetailsPage } from "@/components/branch/branch-details-page";
+import { TeachingDashboard } from "@/components/teacher/teaching-dashboard";
+import type { requireActiveDashboardContext } from "@/lib/auth-server";
 
-export default async function DashboardPage({ section }: { section: "Dashboard" | "Branches" | "Members" | "Organisations" | "Role Manager" }): Promise<ReactElement> {
-  const { superUser, manager, organisationId } = await requireDashboardContext();
+type ActiveContext = Awaited<ReturnType<typeof requireActiveDashboardContext>>;
+
+export default async function DashboardPage({ section, context }: { section: "Dashboard" | "Branches" | "Members" | "Organisations" | "Role Manager"; context?: ActiveContext }): Promise<ReactElement> {
+  const { superUser, manager, organisationId, teacher, pendingBranch } = context ?? await requireDashboardContext();
   if (section === "Role Manager" || section === "Organisations") {
     if (!superUser) redirect("/dashboard");
     return <SuperUserDashboard activeSection={section} />;
   }
   if (section !== "Dashboard" && (superUser || manager || !organisationId)) redirect("/dashboard");
   if (superUser) return <SuperUserDashboard activeSection="Organisations" />;
-  if (manager) return <BranchDetailsPage {...manager} branchManager />;
+  if (manager) return <BranchDetailsPage key={`${manager.orgId}:${manager.branchId}`} {...manager} branchManager />;
+  if (teacher) return <TeachingDashboard key={`${teacher.orgId}:${teacher.branchId}`} {...teacher} />;
   if (organisationId) return <OrganisationAdminDashboard key={organisationId} orgId={organisationId} section={section} />;
 
   return (
@@ -32,7 +37,7 @@ export default async function DashboardPage({ section }: { section: "Dashboard" 
             You’re signed in
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
-            Your ClassManage workspace is ready.
+            {pendingBranch ? "Choose a branch from the sidebar to continue." : "Your ClassManage workspace is ready."}
           </Typography>
         </Paper>
       </Container>

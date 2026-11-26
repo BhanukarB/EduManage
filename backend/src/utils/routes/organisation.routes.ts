@@ -528,3 +528,10 @@ export const GetStudentListAPI = {
   service: Service.ORGANISATION_SERVICE,
   sample: '/<orgId>/branches/<branchId>/sections/<groupId>/students',
 };
+
+export const MyTeachingClassesAPI = {
+  path: '/:orgId/branches/:branchId/my-classes',
+  method: RequestMethod.GET,
+  endpoint: ['/organisations/:orgId/branches/:branchId/my-classes'],
+  permissions: [PermissionEnum.VIEW_MY_CLASSES],
+};

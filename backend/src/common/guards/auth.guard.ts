@@ -1,82 +1,57 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Reflector } from '@nestjs/core';
-import { RbacService } from 'src/modules/rbac/rbac.service';
-import { PermissionEnum } from '../../utils/constants/permissions';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
-import knexConnection from '../../db/connector/knex';
+import { RbacService } from '../../modules/rbac/rbac.service';
+import { Assignment, scopeId, selectAssignment } from '../../modules/rbac/access-context';
+import { PermissionEnum } from '../../utils/constants/permissions';
 
-interface AuthTokenPayload extends JwtPayload {
-  uid: string;
-  orgId?: string;
-  roles?: string[];
-}
-
-// Extend Express Request interface to include 'permissions'
 declare module 'express-serve-static-core' {
   interface Request {
-    permissions?: any;
+    permissions?: string[];
+    accessContext?: Assignment;
   }
 }
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(
-    private readonly jwtService: JwtService,
-    private readonly rbacService: RbacService,
-    private readonly reflector: Reflector,
-  ) {}
+  constructor(private readonly jwtService: JwtService, private readonly rbac: RbacService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const authHeader = request.headers.authorization;
-
-    if (!authHeader) {
-      throw new UnauthorizedException('Authorization header is missing');
-    }
-
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-      throw new UnauthorizedException('Token is missing');
-    }
-
+    const token = request.headers.authorization?.match(/^Bearer (\S+)$/i)?.[1];
+    if (!token) throw new UnauthorizedException('Bearer token is required');
+    let decoded: JwtPayload;
     try {
-      const decoded = this.jwtService.verify<AuthTokenPayload>(token, {
-        secret: process.env.JWT_SECRET,
-      });
-
-      const isStudent = decoded.roles?.includes('student') ?? false;
-      const branchMembership = decoded.orgId
-        ? await knexConnection(isStudent ? 'organisation_student_table' : 'organisation_staff_table')
-            .where({ user_id: decoded.uid, org_id: decoded.orgId })
-            .first('branch_id as branchId')
-        : undefined;
-
-      // Attach user information to the request object
-      request.user = {
-        ...decoded,
-        uid: decoded.uid,
-        branchId: branchMembership?.branchId ?? null,
-      };
-      
-      // Fetch and attach user permissions
-      const userPermissions = await this.rbacService.getUserPermissions(
-        decoded.uid,
-        decoded.orgId,
-      );
-      // Every authenticated account can maintain its own contact number.
-      request.permissions = [...userPermissions, PermissionEnum.UPDATE_OWN_PHONE];
-
-      return true;
-    } catch (error) {
-      console.error(error); // Better to use a logger
+      decoded = this.jwtService.verify<JwtPayload>(token, { secret: process.env.JWT_SECRET });
+    } catch {
       throw new UnauthorizedException('Invalid token');
     }
+    if (typeof decoded.uid !== 'string') throw new UnauthorizedException('Invalid user');
+    const handler = context.getHandler().name;
+    if (['findCurrentUser', 'updateOwnPhone', 'currentAssignments'].includes(handler)) {
+      request.user = { uid: decoded.uid };
+      request.permissions = [PermissionEnum.UPDATE_OWN_PHONE];
+      return true;
+    }
+    const branchDetail = ['getBranchById', 'updateBranch'].includes(handler);
+    const roleId = scopeId([request.headers['x-active-role-id']]);
+    const orgId = scopeId([request.params.orgId, request.body?.orgId, request.query.orgId,
+      request.headers['x-active-org-id'], handler === 'findOrgById' ? request.params.id : undefined]);
+    const branchId = scopeId([request.params.branchId, request.query.branchId, request.body?.branchId ?? undefined,
+      request.headers['x-active-branch-id'], branchDetail ? request.params.id : undefined]);
+    const assignment = selectAssignment(await this.rbac.activeAssignments(decoded.uid), roleId, orgId, branchId);
+    if (branchId && assignment.orgId && !await this.rbac.branchBelongsToOrg(branchId, assignment.orgId)) {
+      throw new ForbiddenException('Branch is outside the selected organisation');
+    }
+    if (context.getClass().name === 'UsersController' && !['org_admin', 'super_admin'].includes(assignment.name)) {
+      throw new ForbiddenException('User management requires administrator access');
+    }
+    request.accessContext = assignment;
+    request.user = { uid: decoded.uid, email: decoded.email, roles: [assignment.name],
+      orgId: assignment.orgId, branchId: assignment.branchId };
+    const role = await this.rbac.getRolePermissions(assignment.roleId);
+    request.permissions = role.permissions.map(row => row.permission);
+    return true;
   }
 }

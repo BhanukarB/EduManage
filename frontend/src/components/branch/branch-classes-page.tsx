@@ -8,8 +8,10 @@ import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchClasses, type BranchClass } from "./branch-data";
 import { PageHeader } from "@/components/common/page-header";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useActiveContextQuery } from "@/lib/active-context";
 
 export function BranchClassesPage({ orgId, branchId }: { orgId: string; branchId: string }) {
+  const contextQuery = useActiveContextQuery();
   const [classes, setClasses] = useState<BranchClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function BranchClassesPage({ orgId, branchId }: { orgId: string; branchId
       <PageHeader title="Classes" subtitle="Classes assigned to this branch" action={<Button variant="contained" disabled={loading} onClick={() => openDialog()}>Add class</Button>} />
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <Paper variant="outlined" sx={{ borderRadius: "12px", px: { xs: 1, md: 2 } }}>
-        {loading ? <PanelLoading padding={8} /> : classes.length ? <List disablePadding>{classes.map((item) => <ListItem key={item.id} divider disablePadding><Stack direction="row" alignItems="center" sx={{ width: "100%", pr: 1 }}><ListItemButton component={Link} href={`/classes/${encodeURIComponent(item.id)}`}><ListItemText primary={item.className} secondary={`Class code: ${item.classCode}${item.description ? ` · ${item.description}` : ""}`} /></ListItemButton><Button size="small" onClick={() => openDialog(item)}>Edit</Button></Stack></ListItem>)}</List> : <Typography color="text.secondary" sx={{ py: 5, textAlign: "center" }}>No classes are linked to this branch yet.</Typography>}
+        {loading ? <PanelLoading padding={8} /> : classes.length ? <List disablePadding>{classes.map((item) => <ListItem key={item.id} divider disablePadding><Stack direction="row" alignItems="center" sx={{ width: "100%", pr: 1 }}><ListItemButton component={Link} href={`/classes/${encodeURIComponent(item.id)}${contextQuery}`}><ListItemText primary={item.className} secondary={`Class code: ${item.classCode}${item.description ? ` · ${item.description}` : ""}`} /></ListItemButton><Button size="small" onClick={() => openDialog(item)}>Edit</Button></Stack></ListItem>)}</List> : <Typography color="text.secondary" sx={{ py: 5, textAlign: "center" }}>No classes are linked to this branch yet.</Typography>}
       </Paper>
     <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="sm"><DialogTitle>{editing ? "Update class" : "Create class"}</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}><TextField required label="Class name" value={form.className} onChange={(event) => setForm({ ...form, className: event.target.value })} /><TextField required label="Class code" value={form.classCode} onChange={(event) => setForm({ ...form, classCode: event.target.value })} /><TextField multiline minRows={2} label="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Stack></DialogContent><DialogActions><Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button><Button variant="contained" onClick={() => void save()} disabled={saving || !form.className.trim() || !form.classCode.trim()}>{editing ? "Save changes" : "Create class"}</Button></DialogActions></Dialog>
     <Snackbar open={Boolean(notice)} autoHideDuration={3500} onClose={() => setNotice("")} message={notice} />

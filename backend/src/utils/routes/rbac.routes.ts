@@ -142,3 +142,19 @@ export const GetUsersByOrgAndRoleAPI = {
     service: Service.RBAC_SERVICE,
     sample: '/org/role/2/users',
 }
+
+const revokeAssignmentPath = 'organisations/:orgId/users/:userId/assignments/:roleId';
+export const GrantAssignmentAPI = {
+  path: 'assignments', endpoint: [Service.RBAC_API_PREFIX + 'assignments'],
+  method: RequestMethod.PUT, permissions: [PermissionEnum.ASSIGN_ROLE_TO_USER],
+};
+export const RevokeAssignmentAPI = {
+  path: revokeAssignmentPath, endpoint: [Service.RBAC_API_PREFIX + revokeAssignmentPath],
+  method: RequestMethod.DELETE, permissions: [PermissionEnum.ASSIGN_ROLE_TO_USER],
+};
+export const UpdateBranchMembershipAPI = {
+  path: 'organisations/:orgId/users/:userId/memberships/:branchId',
+  endpoint: [`${Service.RBAC_API_PREFIX}organisations/:orgId/users/:userId/memberships/:branchId`],
+  method: RequestMethod.PUT,
+  permissions: [PermissionEnum.UPDATE_ORG_STAFF],
+};
