@@ -42,14 +42,6 @@ export async function up(knex: Knex): Promise<void> {
     table.unique(['user_id', 'class_subject_id']);
   });
 
-  await knex.schema.createTable('teacher_duty_table', (table) => {
-    table.uuid('id').primary();
-    table.uuid('user_id').notNullable().references('id').inTable('users_table');
-    table.uuid('class_subject_id').notNullable();
-    table.boolean('is_active').notNullable().defaultTo(true);
-    table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
-  });
-
   await knex.schema.createTable('student_enrollment', (table) => {
     table.uuid('id').primary();
     table.uuid('user_id').notNullable();
@@ -70,7 +62,6 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTable('student_enrollment');
-  await knex.schema.dropTable('teacher_duty_table');
   await knex.schema.dropTable('teacher_class_table');
   await knex.schema.dropTable('batch_subjects_table');
   await knex.schema.dropTable('section_subjects_table');
