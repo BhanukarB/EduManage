@@ -17,109 +17,248 @@ import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSection
 import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
 import { StudentListQueryDto, StudentListPage, StudentGroupType, AddStudentToOrgDto, AddStudentToOrgResultDto } from './dtos/add-student-to-org.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto, OrganisationStaffPageDto, StaffPageQueryDto } from './dtos/organisation-staff.dto';
+import { Logger } from '../../logger';
 
 @Injectable()
 export class OrganisationsService {
+  private readonly logger = new Logger(OrganisationsService.name);
+
   constructor(
     private readonly organisationsRepository: OrganisationsRepository,
     private readonly rbacService: RbacService,
   ) {}
 
   async createOrg(data: CreateOrganisationDto): Promise<OrganisationDto> {
-    return this.organisationsRepository.createOrg(data);
+    try {
+      const org = await this.organisationsRepository.createOrg(data);
+      this.logger.log(`Created organisation ${org.id}`);
+      return org;
+    } catch (error) {
+      this.logger.error('Failed to create organisation', error);
+      throw error;
+    }
   }
 
   async getOrganisationOverview(id: string): Promise<OrganisationDto & { branchCount: number; staffCount: number }> {
-    const [organisation, counts] = await Promise.all([
-      this.organisationsRepository.findOrgById(id),
-      this.organisationsRepository.getOrganisationCounts(id),
-    ]);
-    return { ...organisation, ...counts };
+    try {
+      const [organisation, counts] = await Promise.all([
+        this.organisationsRepository.findOrgById(id),
+        this.organisationsRepository.getOrganisationCounts(id),
+      ]);
+      return { ...organisation, ...counts };
+    } catch (error) {
+      this.logger.error(`Failed to fetch overview for organisation ${id}`, error);
+      throw error;
+    }
   }
 
   async findOrgById(id: string): Promise<OrganisationDto> {
-    return this.organisationsRepository.findOrgById(id);
+    try {
+      return await this.organisationsRepository.findOrgById(id);
+    } catch (error) {
+      this.logger.error(`Failed to find organisation ${id}`, error);
+      throw error;
+    }
   }
 
   async findOrganisationList(): Promise<OrganisationDto[]> {
-    return this.organisationsRepository.findOrganisationList();
+    try {
+      return await this.organisationsRepository.findOrganisationList();
+    } catch (error) {
+      this.logger.error('Failed to fetch organisation list', error);
+      throw error;
+    }
   }
 
   async findOrganisationAdmins(actorId: string, orgId: string): Promise<OrganisationAdminDto[]> {
-
-    return this.organisationsRepository.findOrganisationAdmins(orgId);
+    try {
+      return await this.organisationsRepository.findOrganisationAdmins(orgId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch admins for organisation ${orgId} by actor ${actorId}`, error);
+      throw error;
+    }
   }
 
   async updateOrg(id: string, data: UpdateOrganisationDto): Promise<OrganisationDto> {
-    return this.organisationsRepository.updateOrg(id, data);
+    try {
+      const org = await this.organisationsRepository.updateOrg(id, data);
+      this.logger.log(`Updated organisation ${id}`);
+      return org;
+    } catch (error) {
+      this.logger.error(`Failed to update organisation ${id}`, error);
+      throw error;
+    }
   }
 
-  teachingClasses(orgId: string, branchId: string, userId: string): Promise<ClassDto[]> {
-    return this.organisationsRepository.teachingClasses(orgId, branchId, userId);
+  async teachingClasses(orgId: string, branchId: string, userId: string): Promise<ClassDto[]> {
+    try {
+      return await this.organisationsRepository.teachingClasses(orgId, branchId, userId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch teaching classes for user ${userId} in branch ${branchId}`, error);
+      throw error;
+    }
   }
 
   async createBranch(data: CreateBranchDto): Promise<BranchDto> {
-    return this.organisationsRepository.createBranch(data);
+    try {
+      const branch = await this.organisationsRepository.createBranch(data);
+      this.logger.log(`Created branch ${branch.id}`);
+      return branch;
+    } catch (error) {
+      this.logger.error('Failed to create branch', error);
+      throw error;
+    }
   }
 
   async updateBranch(id: string, data: UpdateBranchDto): Promise<BranchDto> {
-    return this.organisationsRepository.updateBranch(id, data);
+    try {
+      const branch = await this.organisationsRepository.updateBranch(id, data);
+      this.logger.log(`Updated branch ${id}`);
+      return branch;
+    } catch (error) {
+      this.logger.error(`Failed to update branch ${id}`, error);
+      throw error;
+    }
   }
 
   async getBranchById(id: string): Promise<BranchDto> {
-    return this.organisationsRepository.findBranchById(id);
+    try {
+      return await this.organisationsRepository.findBranchById(id);
+    } catch (error) {
+      this.logger.error(`Failed to fetch branch ${id}`, error);
+      throw error;
+    }
   }
 
   async getBranchListByOrgId(orgId: string): Promise<BranchDto[]> {
-    return this.organisationsRepository.findBranchListByOrgId(orgId);
+    try {
+      return await this.organisationsRepository.findBranchListByOrgId(orgId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch branches for organisation ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getBranchSummary(orgId: string, branchId: string, countsOnly?: boolean) {
-    return this.organisationsRepository.getBranchSummary(orgId, branchId, countsOnly);
+    try {
+      return await this.organisationsRepository.getBranchSummary(orgId, branchId, countsOnly);
+    } catch (error) {
+      this.logger.error(`Failed to fetch summary for branch ${branchId} in org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getOrganisationStaff(orgId: string, branchId?: string): Promise<OrganisationStaffDto[]> {
-    return this.organisationsRepository.findOrganisationStaff(orgId, branchId);
+    try {
+      return await this.organisationsRepository.findOrganisationStaff(orgId, branchId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch staff for organisation ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getOrganisationStaffPage(orgId: string, query: StaffPageQueryDto): Promise<OrganisationStaffPageDto> {
-    return this.organisationsRepository.findOrganisationStaffPage(orgId, query);
+    try {
+      return await this.organisationsRepository.findOrganisationStaffPage(orgId, query);
+    } catch (error) {
+      this.logger.error(`Failed to fetch staff page for organisation ${orgId}`, error);
+      throw error;
+    }
   }
 
   async addOrganisationStaff(data: AddOrganisationStaffDto): Promise<OrganisationStaffDto> {
-    return this.organisationsRepository.addOrganisationStaff(data);
+    try {
+      const staff = await this.organisationsRepository.addOrganisationStaff(data);
+      this.logger.log(`Added staff member to organisation ${data.orgId}`);
+      return staff;
+    } catch (error) {
+      this.logger.error(`Failed to add staff member to organisation ${data.orgId}`, error);
+      throw error;
+    }
   }
 
   async updateOrganisationStaff(data: UpdateOrganisationStaffDto, managerBranchId?: string): Promise<OrganisationStaffDto> {
-    return this.organisationsRepository.updateOrganisationStaff(data, managerBranchId);
+    try {
+      const staff = await this.organisationsRepository.updateOrganisationStaff(data, managerBranchId);
+      this.logger.log(`Updated staff member ${data.staffId} in organisation ${data.orgId}`);
+      return staff;
+    } catch (error) {
+      this.logger.error(`Failed to update staff member ${data.staffId} in organisation ${data.orgId}`, error);
+      throw error;
+    }
   }
 
   async createClass(data: CreateClassDto): Promise<ClassDto> {
-    return this.organisationsRepository.createClass(data);
+    try {
+      const created = await this.organisationsRepository.createClass(data);
+      this.logger.log(`Created class ${created.id}`);
+      return created;
+    } catch (error) {
+      this.logger.error('Failed to create class', error);
+      throw error;
+    }
   }
 
   async createBranchClass(orgId: string, branchId: string, data: Omit<CreateClassDto, 'orgId'>): Promise<ClassDto> {
-    return this.organisationsRepository.createBranchClass(orgId, branchId, data);
+    try {
+      const created = await this.organisationsRepository.createBranchClass(orgId, branchId, data);
+      this.logger.log(`Created branch class ${created.id} in branch ${branchId}`);
+      return created;
+    } catch (error) {
+      this.logger.error(`Failed to create branch class in branch ${branchId}`, error);
+      throw error;
+    }
   }
 
   async updateBranchClass(orgId: string, branchId: string, id: string, data: UpdateClassDto): Promise<ClassDto> {
-    return this.organisationsRepository.updateBranchClass(orgId, branchId, id, data);
+    try {
+      const updated = await this.organisationsRepository.updateBranchClass(orgId, branchId, id, data);
+      this.logger.log(`Updated branch class ${id} in branch ${branchId}`);
+      return updated;
+    } catch (error) {
+      this.logger.error(`Failed to update branch class ${id} in branch ${branchId}`, error);
+      throw error;
+    }
   }
 
   async updateClass(id: string, data: UpdateClassDto): Promise<ClassDto> {
-    return this.organisationsRepository.updateClass(id, data);
+    try {
+      const updated = await this.organisationsRepository.updateClass(id, data);
+      this.logger.log(`Updated class ${id}`);
+      return updated;
+    } catch (error) {
+      this.logger.error(`Failed to update class ${id}`, error);
+      throw error;
+    }
   }
 
   async getClassListByOrgId(orgId: string): Promise<ClassDto[]> {
-    return this.organisationsRepository.findClassListByOrgId(orgId);
+    try {
+      return await this.organisationsRepository.findClassListByOrgId(orgId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch classes for organisation ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getClassListByBranch(orgId: string, branchId: string, classId?: string): Promise<ClassDto[]> {
-    return this.organisationsRepository.findClassListByBranch(orgId, branchId, classId);
+    try {
+      return await this.organisationsRepository.findClassListByBranch(orgId, branchId, classId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch classes for branch ${branchId} in org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async createClassSection(data: CreateClassSectionDto): Promise<ClassSectionDto> {
-    return this.organisationsRepository.createClassSection(data);
+    try {
+      const section = await this.organisationsRepository.createClassSection(data);
+      this.logger.log(`Created class section ${section.id}`);
+      return section;
+    } catch (error) {
+      this.logger.error('Failed to create class section', error);
+      throw error;
+    }
   }
 
   async updateClassSection(
@@ -129,15 +268,34 @@ export class OrganisationsService {
     academicSessionId: string,
     data: UpdateClassSectionDto,
   ): Promise<ClassSectionDto> {
-    return this.organisationsRepository.updateClassSection(id, orgId, branchId, academicSessionId, data);
+    try {
+      const section = await this.organisationsRepository.updateClassSection(id, orgId, branchId, academicSessionId, data);
+      this.logger.log(`Updated class section ${id}`);
+      return section;
+    } catch (error) {
+      this.logger.error(`Failed to update class section ${id}`, error);
+      throw error;
+    }
   }
 
   async getClassSectionList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassSectionDto[]> {
-    return this.organisationsRepository.findClassSectionList(orgId, branchId, academicSessionId, classId);
+    try {
+      return await this.organisationsRepository.findClassSectionList(orgId, branchId, academicSessionId, classId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch class sections for branch ${branchId} in org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async createClassBatch(data: CreateClassBatchDto): Promise<ClassBatchDto> {
-    return this.organisationsRepository.createClassBatch(data);
+    try {
+      const batch = await this.organisationsRepository.createClassBatch(data);
+      this.logger.log(`Created class batch ${batch.id}`);
+      return batch;
+    } catch (error) {
+      this.logger.error('Failed to create class batch', error);
+      throw error;
+    }
   }
 
   async updateClassBatch(
@@ -147,15 +305,34 @@ export class OrganisationsService {
     academicSessionId: string,
     data: UpdateClassBatchDto,
   ): Promise<ClassBatchDto> {
-    return this.organisationsRepository.updateClassBatch(id, orgId, branchId, academicSessionId, data);
+    try {
+      const batch = await this.organisationsRepository.updateClassBatch(id, orgId, branchId, academicSessionId, data);
+      this.logger.log(`Updated class batch ${id}`);
+      return batch;
+    } catch (error) {
+      this.logger.error(`Failed to update class batch ${id}`, error);
+      throw error;
+    }
   }
 
   async getClassBatchList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassBatchDto[]> {
-    return this.organisationsRepository.findClassBatchList(orgId, branchId, academicSessionId, classId);
+    try {
+      return await this.organisationsRepository.findClassBatchList(orgId, branchId, academicSessionId, classId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch class batches for branch ${branchId} in org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async createOrgAcademicSession(data: CreateOrgAcademicSessionDto): Promise<OrgAcademicSessionDto> {
-    return this.organisationsRepository.createOrgAcademicSession(data);
+    try {
+      const session = await this.organisationsRepository.createOrgAcademicSession(data);
+      this.logger.log(`Created academic session ${session.id}`);
+      return session;
+    } catch (error) {
+      this.logger.error('Failed to create academic session', error);
+      throw error;
+    }
   }
 
   async updateOrgAcademicSession(
@@ -163,39 +340,93 @@ export class OrganisationsService {
     id: string,
     data: UpdateOrgAcademicSessionDto,
   ): Promise<OrgAcademicSessionDto> {
-    return this.organisationsRepository.updateOrgAcademicSession(orgId, id, data);
+    try {
+      const session = await this.organisationsRepository.updateOrgAcademicSession(orgId, id, data);
+      this.logger.log(`Updated academic session ${id} for org ${orgId}`);
+      return session;
+    } catch (error) {
+      this.logger.error(`Failed to update academic session ${id} for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getOrgAcademicSessionList(orgId: string): Promise<OrgAcademicSessionDto[]> {
-    return this.organisationsRepository.findOrgAcademicSessionList(orgId);
+    try {
+      return await this.organisationsRepository.findOrgAcademicSessionList(orgId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch academic sessions for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getOrgAcademicSessionById(orgId: string, id: string): Promise<OrgAcademicSessionDto> {
-    return this.organisationsRepository.findOrgAcademicSessionById(orgId, id);
+    try {
+      return await this.organisationsRepository.findOrgAcademicSessionById(orgId, id);
+    } catch (error) {
+      this.logger.error(`Failed to fetch academic session ${id} for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async createSubject(data: CreateSubjectDto): Promise<SubjectDto> {
-    return this.organisationsRepository.createSubject(data);
+    try {
+      const subject = await this.organisationsRepository.createSubject(data);
+      this.logger.log(`Created subject ${subject.id}`);
+      return subject;
+    } catch (error) {
+      this.logger.error('Failed to create subject', error);
+      throw error;
+    }
   }
 
   async updateSubject(orgId: string, id: string, data: UpdateSubjectDto): Promise<SubjectDto> {
-    return this.organisationsRepository.updateSubject(orgId, id, data);
+    try {
+      const subject = await this.organisationsRepository.updateSubject(orgId, id, data);
+      this.logger.log(`Updated subject ${id} for org ${orgId}`);
+      return subject;
+    } catch (error) {
+      this.logger.error(`Failed to update subject ${id} for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async assignBranchSubject(orgId: string, branchId: string, subjectId: string): Promise<void> {
-    await this.organisationsRepository.assignBranchSubject(orgId, branchId, subjectId);
+    try {
+      await this.organisationsRepository.assignBranchSubject(orgId, branchId, subjectId);
+      this.logger.log(`Assigned subject ${subjectId} to branch ${branchId}`);
+    } catch (error) {
+      this.logger.error(`Failed to assign subject ${subjectId} to branch ${branchId}`, error);
+      throw error;
+    }
   }
 
   async getSubjectListByOrgId(orgId: string, branchId?: string): Promise<SubjectDto[]> {
-    return this.organisationsRepository.findSubjectListByOrgId(orgId, branchId);
+    try {
+      return await this.organisationsRepository.findSubjectListByOrgId(orgId, branchId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch subjects for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async getSubjectById(orgId: string, id: string): Promise<SubjectDto> {
-    return this.organisationsRepository.findSubjectById(orgId, id);
+    try {
+      return await this.organisationsRepository.findSubjectById(orgId, id);
+    } catch (error) {
+      this.logger.error(`Failed to fetch subject ${id} for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async createClassSubjectMapping(data: CreateClassSubjectMappingDto): Promise<ClassSubjectMappingDto> {
-    return this.organisationsRepository.createClassSubjectMapping(data);
+    try {
+      const mapping = await this.organisationsRepository.createClassSubjectMapping(data);
+      this.logger.log(`Created class subject mapping ${mapping.id}`);
+      return mapping;
+    } catch (error) {
+      this.logger.error('Failed to create class subject mapping', error);
+      throw error;
+    }
   }
 
   async updateClassSubjectMapping(
@@ -203,40 +434,87 @@ export class OrganisationsService {
     id: string,
     data: UpdateClassSubjectMappingDto,
   ): Promise<ClassSubjectMappingDto> {
-    return this.organisationsRepository.updateClassSubjectMapping(orgId, id, data);
+    try {
+      const mapping = await this.organisationsRepository.updateClassSubjectMapping(orgId, id, data);
+      this.logger.log(`Updated class subject mapping ${id} for org ${orgId}`);
+      return mapping;
+    } catch (error) {
+      this.logger.error(`Failed to update class subject mapping ${id} for org ${orgId}`, error);
+      throw error;
+    }
   }
 
   async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {
-    return this.organisationsRepository.createSectionSubjectMapping(data);
+    try {
+      const mapping = await this.organisationsRepository.createSectionSubjectMapping(data);
+      this.logger.log(`Created section subject mapping ${mapping.id}`);
+      return mapping;
+    } catch (error) {
+      this.logger.error('Failed to create section subject mapping', error);
+      throw error;
+    }
   }
 
   async updateSectionSubjectMapping(
     orgId: string, branchId: string, academicSessionId: string, id: string, data: UpdateSectionSubjectMappingDto,
   ): Promise<SectionSubjectMappingDto> {
-    return this.organisationsRepository.updateSectionSubjectMapping(orgId, branchId, academicSessionId, id, data);
+    try {
+      const mapping = await this.organisationsRepository.updateSectionSubjectMapping(orgId, branchId, academicSessionId, id, data);
+      this.logger.log(`Updated section subject mapping ${id}`);
+      return mapping;
+    } catch (error) {
+      this.logger.error(`Failed to update section subject mapping ${id}`, error);
+      throw error;
+    }
   }
 
   async createBatchSubjectMapping(data: CreateBatchSubjectMappingDto): Promise<BatchSubjectMappingDto> {
-    return this.organisationsRepository.createBatchSubjectMapping(data);
+    try {
+      const mapping = await this.organisationsRepository.createBatchSubjectMapping(data);
+      this.logger.log(`Created batch subject mapping ${mapping.id}`);
+      return mapping;
+    } catch (error) {
+      this.logger.error('Failed to create batch subject mapping', error);
+      throw error;
+    }
   }
 
   async updateBatchSubjectMapping(
     orgId: string, branchId: string, academicSessionId: string, id: string, data: UpdateBatchSubjectMappingDto,
   ): Promise<BatchSubjectMappingDto> {
-    return this.organisationsRepository.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
+    try {
+      const mapping = await this.organisationsRepository.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
+      this.logger.log(`Updated batch subject mapping ${id}`);
+      return mapping;
+    } catch (error) {
+      this.logger.error(`Failed to update batch subject mapping ${id}`, error);
+      throw error;
+    }
   }
 
-  getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
-    return this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query);
+  async getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
+    try {
+      return await this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query);
+    } catch (error) {
+      this.logger.error(`Failed to fetch student list for ${groupType} ${groupId}`, error);
+      throw error;
+    }
   }
 
   async addStudentToOrg(orgId: string, data: AddStudentToOrgDto, requireGroup = false): Promise<AddStudentToOrgResultDto> {
-    if (requireGroup && !data.sectionId && !data.batchId) {
-      throw new BadRequestException('Choose a section or batch for this student.');
+    try {
+      if (requireGroup && !data.sectionId && !data.batchId) {
+        throw new BadRequestException('Choose a section or batch for this student.');
+      }
+      if (Boolean(data.guardianName?.trim()) !== Boolean(data.guardianContact?.trim())) {
+        throw new BadRequestException('Provide both guardian name and guardian contact.');
+      }
+      const result = await this.organisationsRepository.addStudentToOrg(orgId, data);
+      this.logger.log(`Added student to organisation ${orgId}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to add student to organisation ${orgId}`, error);
+      throw error;
     }
-    if (Boolean(data.guardianName?.trim()) !== Boolean(data.guardianContact?.trim())) {
-      throw new BadRequestException('Provide both guardian name and guardian contact.');
-    }
-    return this.organisationsRepository.addStudentToOrg(orgId, data);
   }
 }
