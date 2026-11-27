@@ -167,10 +167,6 @@ export class OrganisationsRepository {
         const list = knexConnection('organisation_student_table as s')
             .join('users_table as u', 'u.id', 's.user_id')
             .where({ 's.org_id': orgId, 's.branch_id': branchId, [section ? 's.section_id' : 's.batch_id']: groupId, 's.status': 1 });
-        const count = await list.clone().count('* as total').first();
-        const total = Number(count?.total ?? 0);
-        const { pageSize } = query;
-        const page = Math.min(query.page, Math.max(1, Math.ceil(total / pageSize)));
         if (subjectId) {
             list.leftJoin('student_attendence_table as a', function () {
                 this.on('a.org_student_id', 's.id')
@@ -178,6 +174,11 @@ export class OrganisationsRepository {
                     .onVal(section ? 'a.section_id' : 'a.batch_id', groupId);
             });
         }
+        const count = await list.clone().count('* as total')
+            .count({ presentCount: subjectId ? 'a.id' : knexConnection.raw('null') }).first();
+        const total = Number(count?.total ?? 0);
+        const { pageSize } = query;
+        const page = Math.min(query.page, Math.max(1, Math.ceil(total / pageSize)));
         const students = await list.orderBy(['u.first_name', 'u.last_name', 's.enrollment_number', 's.id'])
             .limit(pageSize).offset((page - 1) * pageSize)
             .select(knexConnection.raw(subjectId ? 'a.id is not null as present' : 'null::boolean as present'),
@@ -194,7 +195,7 @@ export class OrganisationsRepository {
             guardians: guardians.filter(contact => contact.userId === userId)
                 .map(({ firstName, middleName, lastName, phoneNumber }) => ({ firstName, middleName, lastName, phoneNumber })),
         }));
-        return { subjectId, date, subjects, group: { ...group, name: section ? `Section ${code}` : batchName || code }, items, total, page, pageSize };
+        return { presentCount: Number(count?.presentCount ?? 0), subjectId, date, subjects, group: { ...group, name: section ? `Section ${code}` : batchName || code }, items, total, page, pageSize };
     }
 
     async getBranchStudentList(orgId: string, branchId: string, query: BranchStudentListQueryDto): Promise<BranchStudentListPage> {

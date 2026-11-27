@@ -169,6 +169,7 @@ export class StudentListQueryDto extends AttendanceDateDto {
 }
 
 export interface StudentListPage {
+  presentCount: number;
   subjectId: string | null;
   date: string;
   subjects: AttendanceSubject[];

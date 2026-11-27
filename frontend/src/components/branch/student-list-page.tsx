@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactElement } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { Alert, Box, Breadcrumbs, Button, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, ListItemText, MenuItem, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from "@mui/material";
 import BadgeOutlined from "@mui/icons-material/BadgeOutlined";
 import FamilyRestroomOutlined from "@mui/icons-material/FamilyRestroomOutlined";
@@ -30,6 +30,7 @@ interface Student extends Contact {
   guardians: Contact[];
 }
 interface ListPage {
+  presentCount: number;
   subjects: { subjectId: string; subjectName: string }[];
   subjectId: string | null;
   date: string;
@@ -78,7 +79,7 @@ function name(contact: Contact): string {
 export function StudentListPage({ orgId, branchId, classId, groupId, groupType, readOnly = false }: StudentListProps): ReactElement {
   const contextQuery = useActiveContextQuery();
   const search = useSearchParams();
-  const page = search.get("page") ?? "1";
+  const page = readOnly ? "1" : search.get("page") ?? "1";
   const pageSize = search.get("pageSize") ?? "10";
   const params = new URLSearchParams({ page, pageSize });
   const subjectId = search.get("subjectId");
@@ -131,6 +132,35 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
       .catch(reason => { if (active) setResult({ path, error: extractErrorMessage(reason, "Could not load students.") }); });
     return () => { active = false; };
   }, [classId, path, revision]);
+
+  const sentinel = useRef<HTMLDivElement>(null);
+  const [moreError, setMoreError] = useState<{ path: string; message: string } | null>(null);
+  const nextPage = readOnly && list && list.page * list.pageSize < list.total ? list.page + 1 : null;
+  const loadError = moreError?.path === path ? moreError.message : null;
+  useEffect(() => {
+    if (!sentinel.current || !nextPage || marking || loadError) return;
+    let active = true;
+    let requested = false;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || requested) return;
+      requested = true;
+      const next = new URL(path, window.location.origin);
+      next.searchParams.set("page", String(nextPage));
+      readApi<ListPage>(next.pathname.slice(1) + next.search).then(data => {
+        if (!active) return;
+        setResult(previous => {
+          if (previous?.path !== path || !previous.data) return previous;
+          const items = new Map(previous.data.items.map(student => [student.id, student]));
+          for (const student of data.items) items.set(student.id, student);
+          return { path, data: { ...data, items: Array.from(items.values()) } };
+        });
+      }).catch(reason => {
+        if (active) setMoreError({ path, message: extractErrorMessage(reason, "Could not load more students.") });
+      });
+    }, { rootMargin: "160px" });
+    observer.observe(sentinel.current);
+    return () => { active = false; observer.disconnect(); };
+  }, [nextPage, path, marking, loadError]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -229,8 +259,8 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
     try {
       await api(`${rosterPath}/${studentId}/attendance`, { method: "PUT",
         body: JSON.stringify({ subjectId: list.subjectId, date: list.date, present }) });
-      setRevision(value => value + 1);
       setResult(previous => previous?.path === path && previous.data ? { path, data: { ...previous.data,
+        presentCount: previous.data.presentCount + (present ? 1 : -1),
         items: previous.data.items.map(student => student.id === studentId ? { ...student, present } : student),
       } } : previous);
     } catch (reason) {
@@ -280,6 +310,9 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
     {confirmation && <Alert severity="success" sx={{ mb: 2 }}>{confirmation}</Alert>}
     {current?.error ? <Alert severity="error">{current.error}</Alert> : !list ? <CircularProgress aria-label="Loading students" /> :
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
+        {readOnly && <Typography role="status" variant="subtitle1" sx={{ px: 2, py: 1.5, fontWeight: 600 }}>
+          Present: {list.presentCount} of {list.total} students
+        </Typography>}
         <TableContainer>
           <Table aria-label="Student list" sx={{ minWidth: 620 }}>
             <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
@@ -305,10 +338,15 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
             </TableBody>
           </Table>
         </TableContainer>
-        <TablePagination component="div" count={list.total} page={list.page - 1} rowsPerPage={list.pageSize}
+        {readOnly ? <>
+          {loadError && <Alert severity="error" action={<Button onClick={() => setMoreError(null)}>Retry</Button>}>{loadError}</Alert>}
+          {nextPage && !loadError && <Box ref={sentinel} sx={{ py: 1, textAlign: "center" }}>
+            <CircularProgress size={20} aria-label="Loading more students" />
+          </Box>}
+        </> : <TablePagination component="div" count={list.total} page={list.page - 1} rowsPerPage={list.pageSize}
           rowsPerPageOptions={Array.from(new Set([2, 5, 10, 25, 50, list.pageSize])).sort((a, b) => a - b)}
           onPageChange={(_, index) => paginate(index + 1, list.pageSize)}
-          onRowsPerPageChange={event => paginate(1, Number(event.target.value))} />
+          onRowsPerPageChange={event => paginate(1, Number(event.target.value))} />}
       </Paper>}
     <Dialog open={adding || Boolean(selected)} fullWidth maxWidth="sm" onClose={close} aria-labelledby="student-dialog-title">
     <DialogTitle id="student-dialog-title">{adding ? "Add student" : selected && name(selected)}</DialogTitle>
