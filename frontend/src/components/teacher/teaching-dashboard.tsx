@@ -50,7 +50,9 @@ export function TeachingDashboard({ orgId, branchId, branchName }: { orgId: stri
 
   function studentsHref(row: TeachingClass): string {
     const groupSegment = row.groupType === "section" ? "sections" : "batches";
-    return `/classes/${encodeURIComponent(row.classId)}/${groupSegment}/${encodeURIComponent(row.groupId)}/students${contextQuery}`;
+    const params = new URLSearchParams(contextQuery);
+    params.set("subjectId", row.subjectId);
+    return `/classes/${encodeURIComponent(row.classId)}/${groupSegment}/${encodeURIComponent(row.groupId)}/students?${params}`;
   }
 
   return (

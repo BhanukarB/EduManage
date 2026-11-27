@@ -597,6 +597,23 @@ export const GetStudentListAPI = {
   sample: '/<orgId>/branches/<branchId>/sections/<groupId>/students',
 };
 
+const attendancePath = `${listPath}/:studentId/attendance`;
+export const SetStudentAttendanceAPI = {
+  path: attendancePath,
+  endpoint: [`${Service.ORGANISATION_API_PREFIX}${attendancePath.slice(1)}`, `${Service.ORGANISATION_API_PREFIX}v1${attendancePath}`],
+  method: RequestMethod.PUT,
+  argument: ['orgId', 'branchId', 'groupType', 'groupId', 'studentId'],
+  permissions: [PermissionEnum.MARK_STUDENT_ATTENDANCE],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/branches/<branchId>/sections/<groupId>/students/<studentId>/attendance',
+};
+
+export const GetStudentAttendanceAPI = {
+  ...SetStudentAttendanceAPI,
+  method: RequestMethod.GET,
+  permissions: [PermissionEnum.VIEW_STUDENT_LIST],
+};
+
 export const MyTeachingClassesAPI = {
   path: '/:orgId/branches/:branchId/my-classes',
   method: RequestMethod.GET,

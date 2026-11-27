@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { OrganisationsRepository } from './organisations.repository';
 import { RbacService } from '../rbac/rbac.service';
@@ -16,6 +16,9 @@ import {
 import { CreateSectionSubjectMappingDto, SectionSubjectDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
 import { BatchSubjectDto, BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
 import {
+  AttendanceRangeDto,
+  StudentAttendanceHistory,
+  SetStudentAttendanceDto,
   StudentListQueryDto,
   StudentListPage,
   StudentGroupType,
@@ -568,6 +571,26 @@ export class OrganisationsService {
     }
   }
 
+  async getStudentAttendance(
+    orgId: string, branchId: string, groupType: StudentGroupType, groupId: string,
+    studentId: string, teacherId: string, range: AttendanceRangeDto,
+  ): Promise<StudentAttendanceHistory> {
+    if (range.startDate > range.endDate) throw new BadRequestException('Start date must be on or before end date');
+    const subjects = await this.organisationsRepository.teacherGroupSubjects(orgId, branchId, teacherId, groupType, groupId);
+    if (!subjects.some(subject => subject.subjectId === range.subjectId)) {
+      throw new ForbiddenException('You are not assigned to teach this subject in this group');
+    }
+    return this.organisationsRepository.getStudentAttendance(orgId, branchId, groupType, groupId, studentId, range);
+  }
+
+  async setStudentAttendance(
+    orgId: string, branchId: string, groupType: StudentGroupType, groupId: string,
+    studentId: string, teacherId: string, data: SetStudentAttendanceDto,
+  ): Promise<void> {
+    await this.organisationsRepository.setStudentAttendance(orgId, branchId, groupType, groupId,
+      studentId, teacherId, data, data.date ?? new Date().toLocaleDateString('en-CA'));
+  }
+
   async getStudentList(
     orgId: string,
     branchId: string,
@@ -577,10 +600,15 @@ export class OrganisationsService {
     teacherUserId?: string,
   ): Promise<StudentListPage> {
     try {
-      if (teacherUserId) {
-        await this.organisationsRepository.assertTeacherGroupAccess(orgId, branchId, teacherUserId, groupType, groupId);
+      const subjects = teacherUserId
+        ? await this.organisationsRepository.teacherGroupSubjects(orgId, branchId, teacherUserId, groupType, groupId)
+        : [];
+      const subjectId = query.subjectId ?? subjects[0]?.subjectId ?? null;
+      if (teacherUserId && !subjects.some(subject => subject.subjectId === subjectId)) {
+        throw new ForbiddenException('You are not assigned to teach this subject in this group');
       }
-      return await this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query);
+      return await this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query,
+        subjectId, query.date ?? new Date().toLocaleDateString('en-CA'), subjects);
     } catch (error) {
       this.logger.error(`Failed to fetch student list for ${groupType} ${groupId}`, error);
       throw error;

@@ -23,6 +23,8 @@ import {
   UpdateBranchStudentAPI,
   GetBranchStudentListAPI,
   GetStudentListAPI,
+  GetStudentAttendanceAPI,
+  SetStudentAttendanceAPI,
   AddOrganisationStaffAPI,
   AssignBranchSubjectAPI,
   CreateSubjectAPI,
@@ -77,6 +79,9 @@ import {
   BatchSubjectDto, BatchSubjectMappingDto, CreateBatchSubjectMappingRequestDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
 import {
+  AttendanceRangeDto,
+  StudentAttendanceHistory,
+  SetStudentAttendanceDto,
   StudentListQueryDto,
   StudentListPage,
   StudentGroupType,
@@ -804,6 +809,44 @@ export class OrganisationsController {
       data,
       req.user.roles.includes('branch_manager'),
     );
+  }
+
+  @Get(GetStudentAttendanceAPI.path)
+  @Permissions(...GetStudentAttendanceAPI.permissions)
+  @ApiOperation({ summary: 'Read present dates in an inclusive date range for an enrolled student' })
+  getStudentAttendance(
+    @Req() req: { user: { uid: string; orgId: string; branchId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('groupType', new ParseEnumPipe(StudentGroupType)) groupType: StudentGroupType,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Query(new ValidationPipe({ whitelist: true, transform: true })) data: AttendanceRangeDto,
+  ): Promise<StudentAttendanceHistory> {
+    this.assertBranchAccess(req, orgId, branchId);
+    if (!req.user.roles.includes('teacher') || (req.user.branchId && req.user.branchId !== branchId)) {
+      throw new ForbiddenException('Select a teaching assignment in this branch');
+    }
+    return this.organisationsService.getStudentAttendance(orgId, branchId, groupType, groupId, studentId, req.user.uid, data);
+  }
+
+  @Put(SetStudentAttendanceAPI.path)
+  @Permissions(...SetStudentAttendanceAPI.permissions)
+  @ApiOperation({ summary: 'Set subject attendance for an enrolled student' })
+  setStudentAttendance(
+    @Req() req: { user: { uid: string; orgId: string; branchId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('groupType', new ParseEnumPipe(StudentGroupType)) groupType: StudentGroupType,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body(new ValidationPipe({ whitelist: true })) data: SetStudentAttendanceDto,
+  ): Promise<void> {
+    this.assertBranchAccess(req, orgId, branchId);
+    if (!req.user.roles.includes('teacher') || (req.user.branchId && req.user.branchId !== branchId)) {
+      throw new ForbiddenException('Select a teaching assignment in this branch');
+    }
+    return this.organisationsService.setStudentAttendance(orgId, branchId, groupType, groupId, studentId, req.user.uid, data);
   }
 
   @Get(GetStudentListAPI.path)

@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactElement } from "react";
-import { Alert, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, ListItemText, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from "@mui/material";
+import { Alert, Box, Breadcrumbs, Button, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, ListItemText, MenuItem, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, Typography } from "@mui/material";
+import BadgeOutlined from "@mui/icons-material/BadgeOutlined";
+import FamilyRestroomOutlined from "@mui/icons-material/FamilyRestroomOutlined";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
+import { AttendanceCalendar } from "@/components/teacher/attendance-calendar";
 import { SectionHeader } from "@/components/pages/section-details-page";
 import { PageHeader } from "@/components/common/page-header";
 import type { AcademicSession } from "@/types/domain";
@@ -20,12 +23,16 @@ interface Contact {
   phoneNumber: string | null;
 }
 interface Student extends Contact {
+  present: boolean | null;
   id: string;
   enrollmentNumber: string;
   emailId: string | null;
   guardians: Contact[];
 }
 interface ListPage {
+  subjects: { subjectId: string; subjectName: string }[];
+  subjectId: string | null;
+  date: string;
   group: { name: string; classId: string; className: string; academicSessionId?: string };
   items: Student[];
   page: number;
@@ -74,11 +81,21 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
   const page = search.get("page") ?? "1";
   const pageSize = search.get("pageSize") ?? "10";
   const params = new URLSearchParams({ page, pageSize });
-  const path = `organisations/${orgId}/branches/${branchId}/${groupType}/${groupId}/students?${params}`;
+  const subjectId = search.get("subjectId");
+  const date = search.get("date") || new Date().toLocaleDateString("en-CA");
+  if (readOnly) {
+    params.set("date", date);
+    if (subjectId) params.set("subjectId", subjectId);
+  }
+  const rosterPath = `organisations/${orgId}/branches/${branchId}/${groupType}/${groupId}/students`;
+  const path = `${rosterPath}?${params}`;
+  const [attendanceError, setAttendanceError] = useState("");
+  const [marking, setMarking] = useState(false);
   const [result, setResult] = useState<{ path: string; data?: ListPage; error?: string } | null>(null);
   const current = result?.path === path ? result : null;
   const list = current?.data;
   const group = list?.group;
+  const [studentTab, setStudentTab] = useState<"attendance" | "details">("attendance");
   const [selected, setSelected] = useState<Student | null>(null);
   const [adding, setAdding] = useState(false);
   const [addMode, setAddMode] = useState<"new" | "existing">("new");
@@ -194,7 +211,33 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
     setBranchSearch("");
     setBranchStudentsError("");
     setSelected(null);
+    setStudentTab("attendance");
     setError("");
+  }
+
+  function changeAttendanceFilter(key: "subjectId" | "date", value: string): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set(key, value);
+    setAttendanceError("");
+    window.history.replaceState(null, "", url);
+  }
+
+  async function markAttendance(studentId: string, present: boolean): Promise<void> {
+    if (!list?.subjectId || marking) return;
+    setMarking(true);
+    setAttendanceError("");
+    try {
+      await api(`${rosterPath}/${studentId}/attendance`, { method: "PUT",
+        body: JSON.stringify({ subjectId: list.subjectId, date: list.date, present }) });
+      setRevision(value => value + 1);
+      setResult(previous => previous?.path === path && previous.data ? { path, data: { ...previous.data,
+        items: previous.data.items.map(student => student.id === studentId ? { ...student, present } : student),
+      } } : previous);
+    } catch (reason) {
+      setAttendanceError(extractErrorMessage(reason, "Could not save attendance."));
+    } finally {
+      setMarking(false);
+    }
   }
 
   function paginate(nextPage: number, nextSize: number): void {
@@ -224,6 +267,16 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
         Student enrollment requires an active academic session.
       </Alert>
     )}
+    {readOnly && <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+      {list?.subjectId && <TextField select label="Subject" size="small" value={list.subjectId}
+        disabled={marking} onChange={event => changeAttendanceFilter("subjectId", event.target.value)}>
+        {list.subjects.map(subject => <MenuItem key={subject.subjectId} value={subject.subjectId}>{subject.subjectName}</MenuItem>)}
+      </TextField>}
+      <TextField type="date" size="small" label="Attendance date" value={date} disabled={marking}
+        slotProps={{ inputLabel: { shrink: true } }}
+        onChange={event => changeAttendanceFilter("date", event.target.value)} />
+    </Stack>}
+    {attendanceError && <Alert severity="error" sx={{ mb: 2 }}>{attendanceError}</Alert>}
     {confirmation && <Alert severity="success" sx={{ mb: 2 }}>{confirmation}</Alert>}
     {current?.error ? <Alert severity="error">{current.error}</Alert> : !list ? <CircularProgress aria-label="Loading students" /> :
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
@@ -231,7 +284,7 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
           <Table aria-label="Student list" sx={{ minWidth: 620 }}>
             <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
               <TableRow>{["Student name", "Enrollment number", "Email", "Phone number"].map(label =>
-                <TableCell key={label}>{label}</TableCell>)}</TableRow>
+                <TableCell key={label}>{label}</TableCell>)}{readOnly && <TableCell>Attendance</TableCell>}</TableRow>
             </TableHead>
             <TableBody>
               {list.items.map(student => <TableRow hover key={student.id}
@@ -242,8 +295,13 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
                 <TableCell>{student.enrollmentNumber}</TableCell>
                 <TableCell>{student.emailId || "—"}</TableCell>
                 <TableCell>{student.phoneNumber || "—"}</TableCell>
+                {readOnly && <TableCell onClick={event => event.stopPropagation()}>
+                  <Checkbox checked={student.present === true} disabled={marking || !list.subjectId}
+                    slotProps={{ input: { "aria-label": `Present: ${name(student)}` } }}
+                    onChange={(_, checked) => void markAttendance(student.id, checked)} />
+                </TableCell>}
               </TableRow>)}
-              {!list.items.length && <TableRow><TableCell colSpan={4}>No students enrolled.</TableCell></TableRow>}
+              {!list.items.length && <TableRow><TableCell colSpan={readOnly ? 5 : 4}>No students enrolled.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </TableContainer>
@@ -336,13 +394,48 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
           </Stack>
         )}
       </> : selected ? <Stack spacing={1}>
-        <Typography>Enrollment number: {selected.enrollmentNumber}</Typography>
-        <Typography>Email: {selected.emailId || "—"}</Typography>
-        <Typography>Phone number: {selected.phoneNumber || "—"}</Typography>
-        {selected.guardians.length ? selected.guardians.map((guardian, index) => <Stack key={index}>
-          <Typography>Guardian name: {name(guardian)}</Typography>
-          <Typography>Guardian contact: {guardian.phoneNumber || "—"}</Typography>
-        </Stack>) : <Typography>No guardian recorded.</Typography>}
+        {readOnly && list?.subjectId && <>
+          <Tabs aria-label="Student information" value={studentTab}
+            onChange={(_, value: "attendance" | "details") => setStudentTab(value)}>
+            <Tab id="attendance-tab" aria-controls="attendance-panel" label="Attendance" value="attendance" />
+            <Tab id="details-tab" aria-controls="details-panel" label="Student details" value="details" />
+          </Tabs>
+          <Box role="tabpanel" id="attendance-panel" aria-labelledby="attendance-tab" hidden={studentTab !== "attendance"}>
+            <AttendanceCalendar path={`${rosterPath}/${selected.id}/attendance`}
+          subjectId={list.subjectId} subjectName={list.subjects.find(subject => subject.subjectId === list.subjectId)?.subjectName} />
+          </Box>
+        </>}
+        <Stack spacing={2.5} role={readOnly ? "tabpanel" : undefined} id="details-panel"
+          aria-labelledby={readOnly ? "details-tab" : undefined}
+          sx={{ pt: 1.5, display: readOnly && list?.subjectId && studentTab !== "details" ? "none" : "flex" }}>
+          <Stack direction="row" alignItems="center" spacing={1.5}
+            sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover", borderLeft: 3, borderColor: "primary.main" }}>
+            <BadgeOutlined color="primary" />
+            <Box>
+              <Typography variant="body2" color="text.secondary">Enrollment number</Typography>
+              <Typography fontWeight={700} sx={{ letterSpacing: "0.04em", overflowWrap: "anywhere" }}>
+                {selected.enrollmentNumber}
+              </Typography>
+            </Box>
+          </Stack>
+          <Box component="dl" sx={{ m: 0, display: "grid", gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 2fr) minmax(0, 1fr)" } }}>
+            {[["Email", selected.emailId], ["Phone number", selected.phoneNumber]].map(([label, value]) => <Box key={label}>
+              <Typography component="dt" variant="body2" color="text.secondary">{label}</Typography>
+              <Typography component="dd" sx={{ m: 0, mt: 0.5, overflowWrap: "anywhere" }}>{value || "—"}</Typography>
+            </Box>)}
+          </Box>
+          <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2 }}>
+            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <FamilyRestroomOutlined fontSize="small" color="primary" />
+              <Typography component="h3" variant="subtitle2">Guardian contact</Typography>
+            </Stack>
+            {selected.guardians.length ? selected.guardians.map((guardian, index) => <Box key={index} sx={{ py: 0.75 }}>
+              <Typography fontWeight={600}>{name(guardian)}</Typography>
+              <Typography variant="body2" color="text.secondary">{guardian.phoneNumber || "—"}</Typography>
+            </Box>) : <Typography color="text.secondary">No guardian recorded.</Typography>}
+          </Box>
+        </Stack>
       </Stack> : null}
     </DialogContent>
     <DialogActions>

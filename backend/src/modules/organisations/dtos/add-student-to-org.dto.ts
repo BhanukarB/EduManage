@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, Min, Max, IsDateString, IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, Matches, IsInt, Min, Max, IsDateString, IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class AddStudentToOrgDto {
   @ApiProperty({ example: 'Asha' })
@@ -100,10 +100,59 @@ export interface StudentListItem extends StudentGuardianContact {
   id: string;
   enrollmentNumber: string;
   emailId: string | null;
+  present: boolean | null;
   guardians: StudentGuardianContact[];
 }
 
-export class StudentListQueryDto {
+class AttendanceDateDto {
+  @ApiPropertyOptional({ format: 'date', description: 'Defaults to today' })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true })
+  date?: string;
+}
+
+export class AttendanceRangeDto {
+  @ApiProperty()
+  @IsUUID()
+  subjectId: string;
+
+  @ApiProperty({ format: 'date' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true })
+  startDate: string;
+
+  @ApiProperty({ format: 'date' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true })
+  endDate: string;
+}
+
+export interface StudentAttendanceHistory {
+  presentDates: string[];
+}
+
+export class SetStudentAttendanceDto extends AttendanceDateDto {
+  @ApiProperty()
+  @IsUUID()
+  subjectId: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  present: boolean;
+}
+
+export interface AttendanceSubject {
+  subjectId: string;
+  subjectName: string;
+}
+
+export class StudentListQueryDto extends AttendanceDateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  subjectId?: string;
+
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @Type(() => Number)
   @IsInt()
@@ -120,6 +169,9 @@ export class StudentListQueryDto {
 }
 
 export interface StudentListPage {
+  subjectId: string | null;
+  date: string;
+  subjects: AttendanceSubject[];
   group: { name: string; classId: string; className: string; academicSessionId?: string };
   items: StudentListItem[];
   total: number;

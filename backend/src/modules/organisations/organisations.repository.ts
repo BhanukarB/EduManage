@@ -25,6 +25,10 @@ import {
     BatchSubjectDto, BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
 import {
+    AttendanceSubject,
+    AttendanceRangeDto,
+    StudentAttendanceHistory,
+    SetStudentAttendanceDto,
     StudentListQueryDto,
     StudentListPage,
     StudentGroupType,
@@ -91,46 +95,67 @@ const subjectColumns = [
 
 @Injectable()
 export class OrganisationsRepository {
-    async assertTeacherGroupAccess(
-        orgId: string,
-        branchId: string,
-        userId: string,
-        groupType: StudentGroupType,
-        groupId: string,
-    ): Promise<void> {
-        const isSection = groupType === StudentGroupType.Sections;
-        const assignment = isSection
-            ? await knexConnection('section_subjects_table as ss')
-                .join('sections_table as sec', 'sec.id', 'ss.section_id')
-                .join('classes as c', 'c.id', 'sec.class_id')
-                .join('academic_sessions_table as ses', 'ses.id', 'ss.academic_session_id')
-                .where({
-                    'ss.section_id': groupId,
-                    'ss.teacher_user_id': userId,
-                    'sec.branch_id': branchId,
-                    'c.org_id': orgId,
-                    'ses.org_id': orgId,
-                    'ses.status': 1,
-                })
-                .first('ss.id')
-            : await knexConnection('batch_subjects_table as bs')
-                .join('batches_table as b', 'b.id', 'bs.batch_id')
-                .join('academic_sessions_table as ses', 'ses.id', 'bs.academic_session_id')
-                .where({
-                    'bs.batch_id': groupId,
-                    'bs.teacher_user_id': userId,
-                    'b.org_id': orgId,
-                    'b.branch_id': branchId,
-                    'ses.org_id': orgId,
-                    'ses.status': 1,
-                })
-                .first('bs.id');
-        if (!assignment) {
-            throw new ForbiddenException('You are not assigned to this class group');
-        }
+    async teacherGroupSubjects(
+        orgId: string, branchId: string, userId: string, groupType: StudentGroupType, groupId: string,
+        trx?: Knex.Transaction,
+    ): Promise<AttendanceSubject[]> {
+        const section = groupType === StudentGroupType.Sections;
+        const db = trx ?? knexConnection;
+        return db(section ? 'section_subjects_table as m' : 'batch_subjects_table as m')
+            .join(section ? 'sections_table as g' : 'batches_table as g', 'g.id', section ? 'm.section_id' : 'm.batch_id')
+            .join('classes as c', 'c.id', 'g.class_id')
+            .join('subjects_table as sub', 'sub.id', 'm.subject_id')
+            .join('academic_sessions_table as ses', 'ses.id', 'm.academic_session_id')
+            .where({ 'g.id': groupId, 'g.branch_id': branchId, 'c.org_id': orgId, 'sub.organisation_id': orgId,
+                'ses.org_id': orgId, 'ses.status': 1, 'm.teacher_user_id': userId })
+            .modify(builder => { if (trx) builder.forShare(); })
+            .orderBy(['sub.subject_name', 'sub.id'])
+            .select('sub.id as subjectId', 'sub.subject_name as subjectName');
     }
 
-    async getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
+    async getStudentAttendance(
+        orgId: string, branchId: string, groupType: StudentGroupType, groupId: string,
+        studentId: string, range: AttendanceRangeDto,
+    ): Promise<StudentAttendanceHistory> {
+        const groupColumn = groupType === StudentGroupType.Sections ? 'section_id' : 'batch_id';
+        const student = await knexConnection('organisation_student_table')
+            .where({ id: studentId, org_id: orgId, branch_id: branchId, [groupColumn]: groupId, status: 1 }).first('id');
+        if (!student) throw new NotFoundException('Student is not enrolled in this group');
+        const rows = await knexConnection('student_attendence_table')
+            .where({ org_student_id: studentId, subject_id: range.subjectId, [groupColumn]: groupId })
+            .whereBetween('attendence_date', [range.startDate, range.endDate])
+            .orderBy('attendence_date')
+            .select<{ date: string }[]>(knexConnection.raw("to_char(attendence_date, 'YYYY-MM-DD') as date"));
+        return { presentDates: rows.map(row => row.date) };
+    }
+
+    async setStudentAttendance(
+        orgId: string, branchId: string, groupType: StudentGroupType, groupId: string,
+        studentId: string, teacherId: string, data: SetStudentAttendanceDto, date: string,
+    ): Promise<void> {
+        const groupColumn = groupType === StudentGroupType.Sections ? 'section_id' : 'batch_id';
+        await knexConnection.transaction(async (trx) => {
+            const subjects = await this.teacherGroupSubjects(orgId, branchId, teacherId, groupType, groupId, trx);
+            if (!subjects.some(subject => subject.subjectId === data.subjectId)) {
+                throw new ForbiddenException('You are not assigned to teach this subject in this group');
+            }
+            const student = await trx('organisation_student_table')
+                .where({ id: studentId, org_id: orgId, branch_id: branchId, [groupColumn]: groupId, status: 1 })
+                .forUpdate().first('user_id');
+            if (!student) throw new NotFoundException('Student is not enrolled in this group');
+            const key = { org_student_id: studentId, subject_id: data.subjectId, attendence_date: date, [groupColumn]: groupId };
+            const attendance = trx('student_attendence_table');
+            if (data.present) {
+                await attendance.insert({ ...key, id: randomUUID(), user_id: student.user_id, teacher_user_id: teacherId })
+                    .onConflict(['org_student_id', 'subject_id', 'attendence_date', groupColumn]).ignore();
+            } else {
+                await attendance.where(key).del();
+            }
+        });
+    }
+
+    async getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto,
+        subjectId: string | null, date: string, subjects: AttendanceSubject[]): Promise<StudentListPage> {
         const section = groupType === StudentGroupType.Sections;
         const groupRow = await knexConnection(section ? 'sections_table as g' : 'batches_table as g')
             .join('classes as c', 'c.id', 'g.class_id')
@@ -146,9 +171,17 @@ export class OrganisationsRepository {
         const total = Number(count?.total ?? 0);
         const { pageSize } = query;
         const page = Math.min(query.page, Math.max(1, Math.ceil(total / pageSize)));
+        if (subjectId) {
+            list.leftJoin('student_attendence_table as a', function () {
+                this.on('a.org_student_id', 's.id')
+                    .onVal('a.subject_id', subjectId).onVal('a.attendence_date', date)
+                    .onVal(section ? 'a.section_id' : 'a.batch_id', groupId);
+            });
+        }
         const students = await list.orderBy(['u.first_name', 'u.last_name', 's.enrollment_number', 's.id'])
             .limit(pageSize).offset((page - 1) * pageSize)
-            .select('s.id', 's.user_id as userId', 's.enrollment_number as enrollmentNumber', 'u.first_name as firstName',
+            .select(knexConnection.raw(subjectId ? 'a.id is not null as present' : 'null::boolean as present'),
+                's.id', 's.user_id as userId', 's.enrollment_number as enrollmentNumber', 'u.first_name as firstName',
                 'u.middle_name as middleName', 'u.last_name as lastName', 'u.email_id as emailId', 'u.phone_number as phoneNumber');
         const guardians = await knexConnection('student_guardian_table as link')
             .join('users_table as g', 'g.id', 'link.guardian_user_id')
@@ -161,7 +194,7 @@ export class OrganisationsRepository {
             guardians: guardians.filter(contact => contact.userId === userId)
                 .map(({ firstName, middleName, lastName, phoneNumber }) => ({ firstName, middleName, lastName, phoneNumber })),
         }));
-        return { group: { ...group, name: section ? `Section ${code}` : batchName || code }, items, total, page, pageSize };
+        return { subjectId, date, subjects, group: { ...group, name: section ? `Section ${code}` : batchName || code }, items, total, page, pageSize };
     }
 
     async getBranchStudentList(orgId: string, branchId: string, query: BranchStudentListQueryDto): Promise<BranchStudentListPage> {
