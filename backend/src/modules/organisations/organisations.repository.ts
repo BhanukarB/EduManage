@@ -66,7 +66,7 @@ const classColumns = [
 
 const classSectionColumns = [
     's.id', 'c.org_id as orgId', 's.branch_id as branchId',
-    's.academic_session_id as academicSessionId', 's.class_id as classId',
+    's.class_id as classId',
     's.section_code as sectionCode', 's.capacity', 's.daily_start_time as dailyStartTime',
     's.daily_end_time as dailyEndTime', 's.status', 's.created_at as createdAt', 's.updated_at as updatedAt',
 ];
@@ -96,8 +96,8 @@ export class OrganisationsRepository {
         const groupRow = await knexConnection(section ? 'sections_table as g' : 'batches_table as g')
             .join('classes as c', 'c.id', 'g.class_id')
             .where({ 'g.id': groupId, 'g.branch_id': branchId, 'c.org_id': orgId })
-            .first('g.class_id as classId', 'c.class_name as className', 'g.academic_session_id as academicSessionId',
-                ...(section ? ['g.section_code as code'] : ['g.batch_code as code', 'g.batch_name as batchName']));
+            .first('g.class_id as classId', 'c.class_name as className',
+                ...(section ? ['g.section_code as code'] : ['g.batch_code as code', 'g.batch_name as batchName', 'g.academic_session_id as academicSessionId']));
         if (!groupRow) throw new NotFoundException('Class group not found in this branch');
         const { code, batchName, ...group } = groupRow;
         const list = knexConnection('organisation_student_table as s')
@@ -344,10 +344,9 @@ export class OrganisationsRepository {
                     id: data.sectionId,
                     class_id: data.classId,
                     branch_id: branchId,
-                    academic_session_id: session.id,
                 }).first('id');
                 if (!section) {
-                    throw new NotFoundException('Section not found for this class, branch, and academic session');
+                    throw new NotFoundException('Section not found for this class and branch');
                 }
             }
             if (data.batchId) {
@@ -485,9 +484,8 @@ export class OrganisationsRepository {
                     id: data.sectionId,
                     class_id: data.classId,
                     branch_id: data.branchId,
-                    academic_session_id: data.academicSessionId,
                 }).first('id');
-                if (!section) throw new NotFoundException('Section not found for this class, branch, and academic session');
+                if (!section) throw new NotFoundException('Section not found for this class and branch');
             }
             if (data.batchId) {
                 const batch = await trx('batches_table').where({
@@ -567,62 +565,68 @@ export class OrganisationsRepository {
         }
     }
 
+    async listSectionSubjects(orgId: string, branchId: string, academicSessionId: string, sectionId: string): Promise<SubjectDto[]> {
+        await this.findClassSectionById(sectionId, orgId, branchId);
+        return knexConnection('subjects_table').where({ organisation_id: orgId })
+            .whereIn('id', knexConnection('section_subjects_table')
+                .where({ section_id: sectionId, academic_session_id: academicSessionId }).select('subject_id'))
+            .select(subjectColumns).orderBy('subject_name');
+    }
+
     async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {
-        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
-        const subject = await knexConnection('subjects_table').where({ id: data.subjectId, organisation_id: data.orgId }).first('id');
-        if (!subject) throw new NotFoundException('Subject not found for this organisation');
-        const section = await knexConnection('sections_table as s')
-            .join('classes as c', 's.class_id', 'c.id')
-            .where({
-                's.id': data.sectionId, 's.branch_id': data.branchId, 'c.org_id': data.orgId,
-            })
-            .first('s.id');
-        if (!section) throw new NotFoundException('Section not found for this organisation and branch');
-        const [mapping] = await knexConnection('section_subjects_table')
-            .insert({
-                id: randomUUID(), section_id: data.sectionId, subject_id: data.subjectId,
-                academic_session_id: data.academicSessionId, teacher_user_id: null,
-            })
-            .returning(['id', 'section_id as sectionId', 'subject_id as subjectId', 'academic_session_id as academicSessionId',
-                'teacher_user_id as teacherUserId', 'created_at as createdAt', 'updated_at as updatedAt']);
-        return { ...mapping, orgId: data.orgId, branchId: data.branchId };
+        return this.saveSectionSubjectMapping(data.orgId, data.branchId, data.academicSessionId, data);
     }
 
     async updateSectionSubjectMapping(
-        orgId: string, branchId: string, academicSessionId: string, id: string,
-        data: UpdateSectionSubjectMappingDto,
+        orgId: string, branchId: string, academicSessionId: string, id: string, data: UpdateSectionSubjectMappingDto,
     ): Promise<SectionSubjectMappingDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
-        const current = await knexConnection('section_subjects_table as ss')
-            .join('sections_table as s', 'ss.section_id', 's.id')
-            .join('classes as c', 's.class_id', 'c.id')
-            .where({ 'ss.id': id, 'ss.academic_session_id': academicSessionId, 's.branch_id': branchId, 'c.org_id': orgId })
-            .first('ss.section_id as sectionId', 'ss.subject_id as subjectId');
-        if (!current) throw new NotFoundException('Section subject mapping not found in this context');
-        const sectionId = data.sectionId ?? current.sectionId;
-        const subjectId = data.subjectId ?? current.subjectId;
-        const subject = await knexConnection('subjects_table').where({ id: subjectId, organisation_id: orgId }).first('id');
-        if (!subject) throw new NotFoundException('Subject not found for this organisation');
-        const section = await knexConnection('sections_table as s')
-            .join('classes as c', 's.class_id', 'c.id')
-            .where({ 's.id': sectionId, 's.branch_id': branchId, 'c.org_id': orgId })
-            .first('s.id');
-        if (!section) throw new NotFoundException('Section not found in this context');
-        if (data.sectionId !== undefined || data.subjectId !== undefined) {
-            await knexConnection('section_subjects_table').where({ id }).update({
-                section_id: sectionId, subject_id: subjectId,
-                updated_at: knexConnection.fn.now(),
+        return this.saveSectionSubjectMapping(orgId, branchId, academicSessionId, data, id);
+    }
+
+    private async saveSectionSubjectMapping(
+        orgId: string, branchId: string, academicSessionId: string, data: UpdateSectionSubjectMappingDto, id?: string,
+    ): Promise<SectionSubjectMappingDto> {
+        try {
+            return await knexConnection.transaction(async (trx) => {
+                const session = await trx('academic_sessions_table').where({ id: academicSessionId, org_id: orgId })
+                    .first('status').forShare();
+                if (!session) throw new NotFoundException('Academic session not found for this organisation');
+                if (session.status !== 1) throw new BadRequestException('Choose the active academic session');
+
+                const sections = trx('sections_table as s').join('classes as c', 's.class_id', 'c.id')
+                    .where({ 's.branch_id': branchId, 'c.org_id': orgId }).select('s.id');
+                const current = id ? await trx('section_subjects_table').where({ id, academic_session_id: academicSessionId })
+                    .whereIn('section_id', sections.clone()).first('section_id', 'subject_id').forUpdate() : undefined;
+                if (id && !current) throw new NotFoundException('Section subject mapping not found in this branch and session');
+
+                const sectionId = data.sectionId ?? current?.section_id;
+                const subjectId = data.subjectId ?? current?.subject_id;
+                if (!await sections.where('s.id', sectionId).first().forShare()) {
+                    throw new NotFoundException('Section not found for this branch');
+                }
+                const subject = await trx('branch_subjects_table as bs').join('subjects_table as s', 's.id', 'bs.subject_id')
+                    .where({ 'bs.branch_id': branchId, 'bs.subject_id': subjectId, 's.organisation_id': orgId }).first('s.id').forShare();
+                if (!subject) throw new BadRequestException('Choose a subject assigned to this branch');
+
+                const values = { section_id: sectionId, subject_id: subjectId };
+                const mappings = trx('section_subjects_table');
+                const write = id ? mappings.where({ id }).update({ ...values, updated_at: trx.fn.now() })
+                    : mappings.insert({ ...values, id: randomUUID(), academic_session_id: academicSessionId });
+                const [mapping] = await write.returning(['id', 'section_id as sectionId', 'subject_id as subjectId',
+                    'academic_session_id as academicSessionId', 'teacher_user_id as teacherUserId',
+                    'created_at as createdAt', 'updated_at as updatedAt']);
+                return { ...mapping, orgId, branchId };
             });
+        } catch (error: unknown) {
+            if (typeof error === 'object' && error !== null && 'constraint' in error && error.constraint === 'section_subject_session_unique') {
+                throw new ConflictException('This subject is already assigned to the section for this academic session');
+            }
+            throw error;
         }
-        const [mapping] = await knexConnection('section_subjects_table')
-            .where({ id }).select('id', 'section_id as sectionId', 'subject_id as subjectId',
-                'academic_session_id as academicSessionId', 'teacher_user_id as teacherUserId',
-                'created_at as createdAt', 'updated_at as updatedAt');
-        return { ...mapping, orgId, branchId };
     }
 
     async createBatchSubjectMapping(data: CreateBatchSubjectMappingDto): Promise<BatchSubjectMappingDto> {
-        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
+        await this.validateSessionScope(data.orgId, data.branchId, data.academicSessionId, true);
         const subject = await knexConnection('subjects_table').where({ id: data.subjectId, organisation_id: data.orgId }).first('id');
         if (!subject) throw new NotFoundException('Subject not found for this organisation');
         const batch = await knexConnection('batches_table')
@@ -643,7 +647,7 @@ export class OrganisationsRepository {
         orgId: string, branchId: string, academicSessionId: string, id: string,
         data: UpdateBatchSubjectMappingDto,
     ): Promise<BatchSubjectMappingDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
+        await this.validateSessionScope(orgId, branchId, academicSessionId, true);
         const current = await knexConnection('batch_subjects_table as bs')
             .join('batches_table as b', 'bs.batch_id', 'b.id')
             .where({ 'bs.id': id, 'bs.academic_session_id': academicSessionId, 'b.org_id': orgId, 'b.branch_id': branchId, 'b.academic_session_id': academicSessionId })
@@ -885,7 +889,7 @@ export class OrganisationsRepository {
     }
 
     async createClassBatch(data: CreateClassBatchDto): Promise<ClassBatchDto> {
-        const { organisation, branch } = await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
+        const { organisation, branch } = await this.validateSessionScope(data.orgId, data.branchId, data.academicSessionId, true);
         if (organisation.type !== OrganisationType.COACHING || branch.type !== OrganisationType.COACHING) {
             throw new BadRequestException('Batches can only be created for coaching organisations');
         }
@@ -911,7 +915,7 @@ export class OrganisationsRepository {
         academicSessionId: string,
         data: UpdateClassBatchDto,
     ): Promise<ClassBatchDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
+        await this.validateSessionScope(orgId, branchId, academicSessionId, true);
         const existing = await knexConnection('batches_table')
             .where({ id, org_id: orgId, branch_id: branchId, academic_session_id: academicSessionId })
             .first('id', 'start_date', 'end_date');
@@ -946,7 +950,7 @@ export class OrganisationsRepository {
     }
 
     async findClassBatchList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassBatchDto[]> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId);
+        await this.validateSessionScope(orgId, branchId, academicSessionId);
         return knexConnection('batches_table')
             .where({ org_id: orgId, branch_id: branchId, academic_session_id: academicSessionId })
             .modify((query) => { if (classId) query.where('class_id', classId); })
@@ -954,7 +958,7 @@ export class OrganisationsRepository {
             .orderBy('created_at', 'desc');
     }
 
-    private async validateClassSectionScope(
+    private async validateSessionScope(
         orgId: string,
         branchId: string,
         academicSessionId: string,
@@ -975,17 +979,19 @@ export class OrganisationsRepository {
     }
 
     async createClassSection(data: CreateClassSectionDto): Promise<ClassSectionDto> {
-        await this.validateClassSectionScope(data.orgId, data.branchId, data.academicSessionId, true);
-        const classRecord = await knexConnection('classes').where({ id: data.classId, org_id: data.orgId }).first('id');
-        if (!classRecord) throw new NotFoundException('Class not found for this organisation');
+        const branch = await knexConnection('branches').where({ id: data.branchId, org_id: data.orgId }).first('id', 'type');
+        if (!branch) throw new NotFoundException('Branch not found for this organisation');
+        if (branch.type !== OrganisationType.SCHOOL) throw new BadRequestException('Sections are available for school branches');
+        const classRecord = await this.branchClassesQuery(data.orgId, data.branchId).where({ id: data.classId }).first('id');
+        if (!classRecord) throw new NotFoundException('Class not found for this branch');
         const [section] = await knexConnection('sections_table')
             .insert({
                 id: randomUUID(), class_id: data.classId, branch_id: data.branchId,
-                academic_session_id: data.academicSessionId, section_code: data.sectionCode,
+                section_code: data.sectionCode,
                 capacity: data.capacity, daily_start_time: data.dailyStartTime ?? null,
                 daily_end_time: data.dailyEndTime ?? null,
             })
-            .returning(['id', 'class_id as classId', 'branch_id as branchId', 'academic_session_id as academicSessionId',
+            .returning(['id', 'class_id as classId', 'branch_id as branchId',
                 'section_code as sectionCode', 'capacity', 'daily_start_time as dailyStartTime', 'daily_end_time as dailyEndTime',
                 'status', 'created_at as createdAt', 'updated_at as updatedAt']);
         return { ...section, orgId: data.orgId };
@@ -995,15 +1001,13 @@ export class OrganisationsRepository {
         id: string,
         orgId: string,
         branchId: string,
-        academicSessionId: string,
         data: UpdateClassSectionDto,
     ): Promise<ClassSectionDto> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId, true);
         const existing = await knexConnection('sections_table as s')
             .join('classes as c', 's.class_id', 'c.id')
-            .where({ 's.id': id, 's.branch_id': branchId, 's.academic_session_id': academicSessionId, 'c.org_id': orgId })
+            .where({ 's.id': id, 's.branch_id': branchId, 'c.org_id': orgId })
             .first('s.id');
-        if (!existing) throw new NotFoundException('Class section not found for this organisation, branch, and academic session');
+        if (!existing) throw new NotFoundException('Class section not found for this organisation and branch');
         const changes: Record<string, unknown> = {};
         if (data.sectionCode !== undefined) changes.section_code = data.sectionCode;
         if (data.capacity !== undefined) changes.capacity = data.capacity;
@@ -1013,24 +1017,23 @@ export class OrganisationsRepository {
             changes.updated_at = knexConnection.fn.now();
             await knexConnection('sections_table').where({ id }).update(changes);
         }
-        return this.findClassSectionById(id, orgId, branchId, academicSessionId);
+        return this.findClassSectionById(id, orgId, branchId);
     }
 
-    async findClassSectionById(id: string, orgId: string, branchId: string, academicSessionId: string): Promise<ClassSectionDto> {
+    async findClassSectionById(id: string, orgId: string, branchId: string): Promise<ClassSectionDto> {
         const section = await knexConnection('sections_table as s')
             .join('classes as c', 's.class_id', 'c.id')
-            .where({ 's.id': id, 's.branch_id': branchId, 's.academic_session_id': academicSessionId, 'c.org_id': orgId })
+            .where({ 's.id': id, 's.branch_id': branchId, 'c.org_id': orgId })
             .select(classSectionColumns)
             .first();
-        if (!section) throw new NotFoundException('Class section not found for this organisation, branch, and academic session');
+        if (!section) throw new NotFoundException('Class section not found for this organisation and branch');
         return section;
     }
 
-    async findClassSectionList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassSectionDto[]> {
-        await this.validateClassSectionScope(orgId, branchId, academicSessionId);
+    async findClassSectionList(orgId: string, branchId: string, classId?: string): Promise<ClassSectionDto[]> {
         return knexConnection('sections_table as s')
             .join('classes as c', 's.class_id', 'c.id')
-            .where({ 'c.org_id': orgId, 's.branch_id': branchId, 's.academic_session_id': academicSessionId })
+            .where({ 'c.org_id': orgId, 's.branch_id': branchId })
             .modify((query) => { if (classId) query.where('s.class_id', classId); })
             .select(classSectionColumns)
             .orderBy('s.created_at', 'desc');

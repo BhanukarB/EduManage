@@ -277,11 +277,10 @@ export class OrganisationsService {
     id: string,
     orgId: string,
     branchId: string,
-    academicSessionId: string,
     data: UpdateClassSectionDto,
   ): Promise<ClassSectionDto> {
     try {
-      const section = await this.organisationsRepository.updateClassSection(id, orgId, branchId, academicSessionId, data);
+      const section = await this.organisationsRepository.updateClassSection(id, orgId, branchId, data);
       this.logger.log(`Updated class section ${id}`);
       return section;
     } catch (error) {
@@ -290,9 +289,9 @@ export class OrganisationsService {
     }
   }
 
-  async getClassSectionList(orgId: string, branchId: string, academicSessionId: string, classId?: string): Promise<ClassSectionDto[]> {
+  async getClassSectionList(orgId: string, branchId: string, classId?: string): Promise<ClassSectionDto[]> {
     try {
-      return await this.organisationsRepository.findClassSectionList(orgId, branchId, academicSessionId, classId);
+      return await this.organisationsRepository.findClassSectionList(orgId, branchId, classId);
     } catch (error) {
       this.logger.error(`Failed to fetch class sections for branch ${branchId} in org ${orgId}`, error);
       throw error;
@@ -454,6 +453,10 @@ export class OrganisationsService {
       this.logger.error(`Failed to update class subject mapping ${id} for org ${orgId}`, error);
       throw error;
     }
+  }
+
+  async listSectionSubjects(orgId: string, branchId: string, academicSessionId: string, sectionId: string): Promise<SubjectDto[]> {
+    return this.organisationsRepository.listSectionSubjects(orgId, branchId, academicSessionId, sectionId);
   }
 
   async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {

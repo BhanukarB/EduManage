@@ -120,7 +120,7 @@ export class StudentListQueryDto {
 }
 
 export interface StudentListPage {
-  group: { name: string; classId: string; className: string; academicSessionId: string };
+  group: { name: string; classId: string; className: string; academicSessionId?: string };
   items: StudentListItem[];
   total: number;
   page: number;

@@ -10,10 +10,6 @@ export class CreateClassSectionDto {
   @IsUUID()
   branchId: string;
 
-  @ApiProperty()
-  @IsUUID()
-  academicSessionId: string;
-
   @ApiProperty({ description: 'Class UUID' })
   @IsUUID()
   classId: string;
@@ -42,11 +38,11 @@ export class CreateClassSectionDto {
 }
 
 export class CreateClassSectionRequestDto extends OmitType(CreateClassSectionDto, [
-  'orgId', 'branchId', 'academicSessionId',
+  'orgId', 'branchId',
 ] as const) {}
 
 export class UpdateClassSectionDto extends PartialType(OmitType(CreateClassSectionDto, [
-  'orgId', 'branchId', 'academicSessionId', 'classId',
+  'orgId', 'branchId', 'classId',
 ] as const)) {}
 
 export class ClassSectionDto {
@@ -58,9 +54,6 @@ export class ClassSectionDto {
 
   @ApiProperty()
   branchId: string;
-
-  @ApiProperty()
-  academicSessionId: string;
 
   @ApiProperty()
   classId: string;

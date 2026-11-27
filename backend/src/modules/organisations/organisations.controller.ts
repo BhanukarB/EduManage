@@ -13,6 +13,7 @@ import {
   CreateClassSectionAPI,
   CreateClassSubjectMappingAPI,
   CreateSectionSubjectMappingAPI,
+  ListSectionSubjectsAPI,
   CreateBatchSubjectMappingAPI,
   CreateOrgAcademicSessionAPI,
   CreateOrganisationAPI,
@@ -395,18 +396,17 @@ export class OrganisationsController {
   @Post(CreateClassSectionAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...CreateClassSectionAPI.permissions)
-  @ApiOperation({ summary: 'Create a section for a class in a branch and academic session' })
+  @ApiOperation({ summary: 'Create a section for a class in a branch' })
   @ApiResponse({ status: 201, type: ClassSectionDto })
   createClassSection(
     @Req() req: any,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
-    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Body() data: CreateClassSectionRequestDto,
   ): Promise<ClassSectionDto> {
     this.assertOrganisationAccess(req, orgId);
     this.assertBranchAccess(req, orgId, branchId);
-    return this.organisationsService.createClassSection({ ...data, orgId, branchId, academicSessionId });
+    return this.organisationsService.createClassSection({ ...data, orgId, branchId });
   }
 
   @Put(UpdateClassSectionAPI.path)
@@ -419,29 +419,27 @@ export class OrganisationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
-    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Body() data: UpdateClassSectionDto,
   ): Promise<ClassSectionDto> {
     this.assertOrganisationAccess(req, orgId);
     this.assertBranchAccess(req, orgId, branchId);
-    return this.organisationsService.updateClassSection(id, orgId, branchId, academicSessionId, data);
+    return this.organisationsService.updateClassSection(id, orgId, branchId, data);
   }
 
   @Get(GetClassSectionListAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...GetClassSectionListAPI.permissions)
-  @ApiOperation({ summary: 'List class sections by organisation, branch, and academic session' })
+  @ApiOperation({ summary: 'List class sections by organisation and branch' })
   @ApiResponse({ status: 200, type: [ClassSectionDto] })
   getClassSectionList(
     @Req() req: any,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
-    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Query('classId', new ParseUUIDPipe({ optional: true })) classId?: string,
   ): Promise<ClassSectionDto[]> {
     this.assertOrganisationAccess(req, orgId);
     this.assertBranchAccess(req, orgId, branchId);
-    return this.organisationsService.getClassSectionList(orgId, branchId, academicSessionId, classId);
+    return this.organisationsService.getClassSectionList(orgId, branchId, classId);
   }
 
   // batches
@@ -657,10 +655,24 @@ export class OrganisationsController {
   }
 
   // section subject mappings
+  @Get(ListSectionSubjectsAPI.path)
+  @Permissions(...ListSectionSubjectsAPI.permissions)
+  @ApiResponse({ status: 200, type: [SubjectDto] })
+  listSectionSubjects(
+    @Req() req: Request,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
+    @Param('sectionId', ParseUUIDPipe) sectionId: string,
+  ): Promise<SubjectDto[]> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.listSectionSubjects(orgId, branchId, academicSessionId, sectionId);
+  }
+
   @Post(CreateSectionSubjectMappingAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...CreateSectionSubjectMappingAPI.permissions)
-  @ApiOperation({ summary: 'Assign a subject and teacher to a section' })
+  @ApiOperation({ summary: 'Assign a branch subject to a section for the active academic session' })
   @ApiResponse({ status: 201, type: SectionSubjectMappingDto })
   createSectionSubjectMapping(
     @Req() req: any,
@@ -669,7 +681,7 @@ export class OrganisationsController {
     @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Body() data: CreateSectionSubjectMappingRequestDto,
   ): Promise<SectionSubjectMappingDto> {
-    this.assertOrganisationAccess(req, orgId);
+    this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.createSectionSubjectMapping({ ...data, orgId, branchId, academicSessionId });
   }
 
@@ -686,7 +698,7 @@ export class OrganisationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() data: UpdateSectionSubjectMappingDto,
   ): Promise<SectionSubjectMappingDto> {
-    this.assertOrganisationAccess(req, orgId);
+    this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.updateSectionSubjectMapping(orgId, branchId, academicSessionId, id, data);
   }
 

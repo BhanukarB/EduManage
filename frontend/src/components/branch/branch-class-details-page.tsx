@@ -2,10 +2,11 @@
 
 import { PanelLoading } from "@/components/common/panel-loading";
 import { type ReactElement, useEffect, useState } from "react";
-import { Alert, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, List, ListItemButton, MenuItem, Snackbar, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, ListItemText, Paper, Typography } from "@mui/material";
+import { Alert, Box, Breadcrumbs, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Link as MuiLink, ListItem, List, ListItemButton, MenuItem, Snackbar, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tabs, TextField, ListItemText, Paper, Typography } from "@mui/material";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CreateSectionDialog, type ClassSection } from "./section-management";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
 import { readBranchClasses, readBranchIdentity, type BranchClass, type BranchSummary } from "./branch-data";
 import { PageHeader } from "@/components/common/page-header";
@@ -15,7 +16,6 @@ import { useActiveContextQuery } from "@/lib/active-context";
 
 
 interface AcademicSession { id: string; sessionName?: string; name?: string; status?: number }
-interface ClassSection { id: string; academicSessionId: string; classId: string; sectionCode: string; capacity: number; status: number }
 interface ClassBatch {
   id: string;
   academicSessionId: string;
@@ -103,6 +103,8 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
   const [branch, setBranch] = useState<BranchSummary["branch"] | null>(null);
   const [classItem, setClassItem] = useState<BranchClass | null>(null);
   const [sessions, setSessions] = useState<AcademicSession[] | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [addingSection, setAddingSection] = useState(false);
   const [sections, setSections] = useState<ClassSection[]>([]);
   const [batches, setBatches] = useState<ClassBatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,36 +157,40 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
         if (active) setLoading(false);
       }
     };
-    void readApi<AcademicSession[]>(`organisations/${orgId}/academic-sessions`, 30_000)
-      .then((data) => { if (active) setSessions(data); })
-      .catch((reason: unknown) => {
-        if (active) setRelationError(extractErrorMessage(reason, "Could not load academic sessions."));
-      });
     void loadClass();
     return () => { active = false; };
   }, [orgId, branchId, classId]);
 
+  const needsSessions = branch && (branch.type !== 1 || activeTab === "students");
   useEffect(() => {
-    if (!branch || !classItem || !sessions) return;
+    if (!needsSessions) return;
+    let active = true;
+    setSessionError(null);
+    void readApi<AcademicSession[]>(`organisations/${orgId}/academic-sessions`, 30_000)
+      .then((data) => { if (active) setSessions(data); })
+      .catch((reason: unknown) => {
+        if (active) setSessionError(extractErrorMessage(reason, "Could not load academic sessions."));
+      });
+    return () => { active = false; };
+  }, [orgId, needsSessions]);
+
+  useEffect(() => {
+    if (!branch || !classItem || (branch.type !== 1 && !sessions)) return;
     let active = true;
     const loadRelations = async (): Promise<void> => {
       try {
-        const session = sessions.find(item => item.id === sessionId)
-          ?? sessions.find(item => item.status === 1)
-          ?? sessions[0];
-        if (!session) {
-          if (active) {
-            setSections([]);
-            setBatches([]);
-          }
-          return;
-        }
-        const base = `organisations/${orgId}/${branchId}/${session.id}`;
+        const base = `organisations/${orgId}/${branchId}`;
+        const query = `classId=${encodeURIComponent(classId)}`;
         if (branch.type === 1) {
-          const rows = await readApi<ClassSection[]>(`${base}/class-sections?classId=${encodeURIComponent(classId)}`, 30_000);
+          const rows = await readApi<ClassSection[]>(`${base}/class-sections?${query}`, 30_000);
           if (active) setSections(rows);
         } else {
-          const rows = await readApi<ClassBatch[]>(`${base}/class-batches?classId=${encodeURIComponent(classId)}`, 30_000);
+          const session = sessions?.find(item => item.id === sessionId)
+            ?? sessions?.find(item => item.status === 1)
+            ?? sessions?.[0];
+          const rows = session
+            ? await readApi<ClassBatch[]>(`${base}/${session.id}/class-batches?${query}`, 30_000)
+            : [];
           if (active) setBatches(rows);
         }
       } catch (reason) {
@@ -248,7 +254,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
   useEffect(() => {
     if (!editingStudent || !branch || !activeOrgSession || !studentForm.classId) return;
     let active = true;
-    const base = `organisations/${orgId}/${branchId}/${activeOrgSession.id}`;
+    const base = `organisations/${orgId}/${branchId}`;
     setTargetGroupsLoading(true);
     if (branch.type === 1) {
       readApi<ClassSection[]>(`${base}/class-sections?classId=${encodeURIComponent(studentForm.classId)}`, 30_000)
@@ -269,7 +275,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
           if (active) setTargetGroupsLoading(false);
         });
     } else {
-      readApi<ClassBatch[]>(`${base}/class-batches?classId=${encodeURIComponent(studentForm.classId)}`, 30_000)
+      readApi<ClassBatch[]>(`${base}/${activeOrgSession.id}/class-batches?classId=${encodeURIComponent(studentForm.classId)}`, 30_000)
         .then((rows) => {
           if (!active) return;
           setTargetBatches(rows);
@@ -440,13 +446,15 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
             <>
               <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 1 }}>
                 <Typography variant="h6" fontWeight={700}>{relationName}</Typography>
-                {!isSchool && (
+                {isSchool ? (
+                  <Button variant="contained" size="small" disabled={relationsLoading} onClick={() => setAddingSection(true)}>Add section</Button>
+                ) : (
                   <Button variant="contained" size="small" disabled={relationsLoading || !activeSessionId || !isSelectedSessionActive} onClick={() => openBatchDialog()}>
                     Add batch
                   </Button>
                 )}
               </Stack>
-              {sessions && sessions.length > 0 && (
+              {!isSchool && sessions && sessions.length > 0 && (
                 <TextField
                   select
                   size="small"
@@ -464,17 +472,23 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                   ))}
                 </TextField>
               )}
-              {sessions && sessions.length === 0 && (
+              {!isSchool && sessions && sessions.length === 0 && (
                 <Alert severity="info" sx={{ my: 2 }}>
                   No academic sessions have been created for this organisation yet.
                 </Alert>
               )}
-              {selectedSession && !isSelectedSessionActive && (
+              {!isSchool && selectedSession && !isSelectedSessionActive && (
                 <Alert severity="info" sx={{ mb: 2 }}>
                   Viewing an inactive academic session. You can browse records, but adding or updating data is only allowed in the active academic session.
                 </Alert>
               )}
-              {relationError ? <Alert severity="error">{relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map((section) => <ListItemButton key={section.id} divider component={Link} href={`/classes/${classId}/sections/${section.id}/students${contextQuery}`}><ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} /></ListItemButton>)}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? (
+              {(!isSchool && sessionError) || relationError ? <Alert severity="error">{(!isSchool && sessionError) || relationError}</Alert> : relationsLoading ? <CircularProgress size={24} /> : isSchool ? sections.length ? <List disablePadding>{sections.map(section => (
+                <ListItem key={section.id} divider disablePadding>
+                  <ListItemButton component={Link} href={`/classes/${classId}/sections/${section.id}${contextQuery}`}>
+                    <ListItemText primary={`Section ${section.sectionCode}`} secondary={`Capacity: ${section.capacity} · ${section.status === 1 ? "Active" : "Inactive"}`} />
+                  </ListItemButton>
+                </ListItem>
+              ))}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? (
                 <TableContainer sx={{ border: "1px solid", borderColor: "grey.300", borderRadius: 2, overflowX: "auto" }}>
                   <Table aria-label="Batches" sx={{ minWidth: 620 }}>
                     <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700, borderBottom: "1px solid", borderColor: "grey.300" } }}>
@@ -568,6 +582,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                   sx={{ minWidth: { xs: "100%", sm: 280 } }}
                 />
               </Stack>
+              {sessionError && <Alert severity="error">{sessionError}</Alert>}
               {!activeOrgSession && sessions && (
                 <Alert severity="info">
                   No active academic session found. Moving or updating students is only allowed in an active academic session.
@@ -648,6 +663,12 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
           )}
         </Paper>
       </>}
+      {addingSection && <CreateSectionDialog base={`organisations/${orgId}/${branchId}`} classId={classId}
+        onClose={() => setAddingSection(false)} onCreated={section => {
+          setSections(current => [section, ...current]);
+          setAddingSection(false);
+          setNotice(`Section ${section.sectionCode} created.`);
+        }} />}
       <Dialog open={batchDialogOpen} onClose={() => !savingBatch && setBatchDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{editingBatch ? "Update batch" : "Create batch"}</DialogTitle>
         <DialogContent>
@@ -782,7 +803,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                 label="Section"
                 value={studentForm.sectionId}
                 disabled={targetGroupsLoading || !targetSections.length}
-                helperText={!targetGroupsLoading && !targetSections.length ? "No sections available in the active session for this class." : undefined}
+                helperText={!targetGroupsLoading && !targetSections.length ? "No sections available for this class." : undefined}
                 onChange={(event) => setStudentForm({ ...studentForm, sectionId: event.target.value })}
               >
                 {targetSections.map((section) => (

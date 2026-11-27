@@ -7,6 +7,7 @@ import { api, extractErrorMessage, readApi } from "@/lib/api";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { BranchWorkspace } from "@/components/layout/branch-workspace";
+import { SectionHeader } from "@/components/pages/section-details-page";
 import { PageHeader } from "@/components/common/page-header";
 import type { AcademicSession } from "@/types/domain";
 
@@ -23,7 +24,7 @@ interface Student extends Contact {
   guardians: Contact[];
 }
 interface ListPage {
-  group: { name: string; classId: string; className: string; academicSessionId: string };
+  group: { name: string; classId: string; className: string; academicSessionId?: string };
   items: Student[];
   page: number;
   pageSize: number;
@@ -95,8 +96,10 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
       .catch(() => { if (active) setSessions([]); });
     return () => { active = false; };
   }, [orgId]);
-  const groupSession = group && sessions ? sessions.find((s) => s.id === group.academicSessionId) : undefined;
-  const isActiveSession = groupSession ? groupSession.status === 1 : true;
+  const groupSession = groupType === "sections"
+    ? sessions?.find((session) => session.status === 1)
+    : sessions?.find((session) => session.id === group?.academicSessionId);
+  const isActiveSession = groupSession?.status === 1;
   useEffect(() => {
     let active = true;
     readApi<ListPage>(path).then(data => {
@@ -109,13 +112,13 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!group) return;
+    if (!group || !groupSession || !isActiveSession) return;
     const values = Object.fromEntries(new FormData(event.currentTarget));
     setSaving(true);
     setError("");
     try {
       await api(`organisations/${orgId}/students/add`, { method: "POST", body: JSON.stringify({
-        ...values, classId, branchId, academicSessionId: group.academicSessionId,
+        ...values, classId, branchId, academicSessionId: groupSession.id,
         [groupType === "sections" ? "sectionId" : "batchId"]: groupId,
       }) });
       setAdding(false);
@@ -196,17 +199,24 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
     window.history.pushState(null, "", url);
   }
 
+  const addStudentAction = group && <Button variant="contained" disabled={!isActiveSession}
+    onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button>;
+
   return <BranchWorkspace>
+    {groupType === "sections" ? (
+      <SectionHeader classId={classId} sectionId={groupId} name={group?.name} tab="students" action={addStudentAction} />
+    ) : <>
     <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 3 }}>
       <MuiLink component={Link} href="/classes">Classes</MuiLink>
       <MuiLink component={Link} href={`/classes/${classId}`}>{group?.className ?? "Class details"}</MuiLink>
       <Typography color="text.primary">Students</Typography>
     </Breadcrumbs>
     <PageHeader title="Student list" subtitle={group && `${group.className} · ${group.name}`}
-      action={group && <Button variant="contained" disabled={!isActiveSession} onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button>} />
-    {group && !isActiveSession && (
+      action={addStudentAction} />
+    </>}
+    {group && sessions && !isActiveSession && (
       <Alert severity="info" sx={{ mb: 2 }}>
-        This group belongs to an inactive academic session. Students can only be enrolled in the active academic session.
+        Student enrollment requires an active academic session.
       </Alert>
     )}
     {confirmation && <Alert severity="success" sx={{ mb: 2 }}>{confirmation}</Alert>}

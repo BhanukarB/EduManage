@@ -231,42 +231,42 @@ export const GetClassListByBranchAPI = {
 };
 
 export const CreateClassSectionAPI = {
-  path: '/:orgId/:branchId/:academicSessionId/class-sections/create',
+  path: '/:orgId/:branchId/class-sections/create',
   endpoint: [
-    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/:academicSessionId/class-sections/create`,
-    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/:academicSessionId/class-sections/create`,
+    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/class-sections/create`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/class-sections/create`,
   ],
   method: RequestMethod.POST,
-  argument: ['orgId', 'branchId', 'academicSessionId'],
+  argument: ['orgId', 'branchId'],
   permissions: [PermissionEnum.CREATE_CLASS_SECTION],
   service: Service.ORGANISATION_SERVICE,
-  sample: '/<orgId>/<branchId>/<academicSessionId>/class-sections/create',
+  sample: '/<orgId>/<branchId>/class-sections/create',
 };
 
 export const UpdateClassSectionAPI = {
-  path: '/:orgId/:branchId/:academicSessionId/class-sections/update/:id',
+  path: '/:orgId/:branchId/class-sections/update/:id',
   endpoint: [
-    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/:academicSessionId/class-sections/update/:id`,
-    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/:academicSessionId/class-sections/update/:id`,
+    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/class-sections/update/:id`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/class-sections/update/:id`,
   ],
   method: RequestMethod.PUT,
-  argument: ['orgId', 'branchId', 'academicSessionId', 'id'],
+  argument: ['orgId', 'branchId', 'id'],
   permissions: [PermissionEnum.UPDATE_CLASS_SECTION],
   service: Service.ORGANISATION_SERVICE,
-  sample: '/<orgId>/<branchId>/<academicSessionId>/class-sections/update/<id>',
+  sample: '/<orgId>/<branchId>/class-sections/update/<id>',
 };
 
 export const GetClassSectionListAPI = {
-  path: '/:orgId/:branchId/:academicSessionId/class-sections',
+  path: '/:orgId/:branchId/class-sections',
   endpoint: [
-    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/:academicSessionId/class-sections`,
-    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/:academicSessionId/class-sections`,
+    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/class-sections`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/class-sections`,
   ],
   method: RequestMethod.GET,
-  argument: ['orgId', 'branchId', 'academicSessionId'],
+  argument: ['orgId', 'branchId'],
   permissions: [PermissionEnum.GET_CLASS_SECTION_LIST],
   service: Service.ORGANISATION_SERVICE,
-  sample: '/<orgId>/<branchId>/<academicSessionId>/class-sections',
+  sample: '/<orgId>/<branchId>/class-sections',
 };
 
 export const CreateClassBatchAPI = {
@@ -449,6 +449,19 @@ export const UpdateClassSubjectMappingAPI = {
   permissions: [PermissionEnum.UPDATE_CLASS_SUBJECT_MAPPING],
   service: Service.ORGANISATION_SERVICE,
   sample: '/<orgId>/class-subjects/update/<id>',
+};
+
+export const ListSectionSubjectsAPI = {
+  path: '/:orgId/:branchId/:academicSessionId/sections/:sectionId/subjects',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/:academicSessionId/sections/:sectionId/subjects`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/:academicSessionId/sections/:sectionId/subjects`,
+  ],
+  method: RequestMethod.GET,
+  argument: ['orgId', 'branchId', 'academicSessionId', 'sectionId'],
+  permissions: [PermissionEnum.GET_CLASS_SECTION_LIST],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/<branchId>/<academicSessionId>/sections/<sectionId>/subjects',
 };
 
 export const CreateSectionSubjectMappingAPI = {
