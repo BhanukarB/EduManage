@@ -6,6 +6,10 @@ import {
   MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   TextField, Typography,
 } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker";
+import dayjs from "dayjs";
 import { api, extractErrorMessage, readApi } from "@/lib/api";
 import type { Role, Staff } from "@/types/domain";
 
@@ -244,6 +248,16 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
     }
   }
 
+  function draftTimeChange(row: SectionSubject, field: "startTime" | "endTime", value: string): void {
+    setTimeDrafts(current => {
+      const previous = current[row.id] ?? {
+        startTime: toTimeInput(row.startTime),
+        endTime: toTimeInput(row.endTime),
+      };
+      return { ...current, [row.id]: { ...previous, [field]: value } };
+    });
+  }
+
   async function updateTime(row: SectionSubject, field: "startTime" | "endTime", value: string): Promise<void> {
     if (!session || !lists || updatingId) return;
     const previous = timeDrafts[row.id] ?? {
@@ -307,6 +321,7 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
           Add subject
         </Button>
       </Box>
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
       <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
         <Table aria-label="Section subjects" sx={{ minWidth: 760 }}>
           <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
@@ -356,28 +371,48 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
                       ))}
                     </TextField>
                   </TableCell>
-                  <TableCell sx={{ minWidth: 145 }}>
-                    <TextField
-                      type="time"
-                      size="small"
-                      fullWidth
-                      value={draft.startTime}
-                      error={invalidRange}
+                  <TableCell sx={{ minWidth: 155 }}>
+                    <MobileTimePicker
+                      value={draft.startTime ? dayjs(`2000-01-01T${draft.startTime}`) : null}
                       disabled={updatingId === row.id}
-                      slotProps={{ htmlInput: { "aria-label": `Start time for ${row.subjectName}` } }}
-                      onChange={event => void updateTime(row, "startTime", event.target.value)}
+                      onChange={(newValue) => {
+                        const formatted = newValue && newValue.isValid() ? newValue.format("HH:mm") : "";
+                        draftTimeChange(row, "startTime", formatted);
+                      }}
+                      onAccept={(newValue) => {
+                        const formatted = newValue && newValue.isValid() ? newValue.format("HH:mm") : "";
+                        void updateTime(row, "startTime", formatted);
+                      }}
+                      slotProps={{
+                        textField: {
+                          size: "small",
+                          fullWidth: true,
+                          error: invalidRange,
+                          slotProps: { htmlInput: { "aria-label": `Start time for ${row.subjectName}` } },
+                        },
+                      }}
                     />
                   </TableCell>
-                  <TableCell sx={{ minWidth: 145 }}>
-                    <TextField
-                      type="time"
-                      size="small"
-                      fullWidth
-                      value={draft.endTime}
-                      error={invalidRange}
+                  <TableCell sx={{ minWidth: 155 }}>
+                    <MobileTimePicker
+                      value={draft.endTime ? dayjs(`2000-01-01T${draft.endTime}`) : null}
                       disabled={updatingId === row.id}
-                      slotProps={{ htmlInput: { "aria-label": `End time for ${row.subjectName}` } }}
-                      onChange={event => void updateTime(row, "endTime", event.target.value)}
+                      onChange={(newValue) => {
+                        const formatted = newValue && newValue.isValid() ? newValue.format("HH:mm") : "";
+                        draftTimeChange(row, "endTime", formatted);
+                      }}
+                      onAccept={(newValue) => {
+                        const formatted = newValue && newValue.isValid() ? newValue.format("HH:mm") : "";
+                        void updateTime(row, "endTime", formatted);
+                      }}
+                      slotProps={{
+                        textField: {
+                          size: "small",
+                          fullWidth: true,
+                          error: invalidRange,
+                          slotProps: { htmlInput: { "aria-label": `End time for ${row.subjectName}` } },
+                        },
+                      }}
                     />
                   </TableCell>
                 </TableRow>
@@ -391,6 +426,7 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
           </TableBody>
         </Table>
       </TableContainer>
+      </LocalizationProvider>
       {!choices.length && (
         <Typography variant="body2" color="text.secondary">
           {lists.branch.length ? "All branch subjects have been added." : "No subjects assigned to this branch."}
