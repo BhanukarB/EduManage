@@ -15,6 +15,7 @@ import {
   CreateSectionSubjectMappingAPI,
   ListSectionSubjectsAPI,
   CreateBatchSubjectMappingAPI,
+  ListBatchSubjectsAPI,
   CreateOrgAcademicSessionAPI,
   CreateOrganisationAPI,
   AddStudentToOrgAPI,
@@ -70,10 +71,10 @@ import {
   UpdateClassSubjectMappingDto,
 } from './dtos/class-subject-mapping.dto';
 import {
-  CreateSectionSubjectMappingRequestDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto,
+  CreateSectionSubjectMappingRequestDto, SectionSubjectDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto,
 } from './dtos/section-subject-mapping.dto';
 import {
-  BatchSubjectMappingDto, CreateBatchSubjectMappingRequestDto, UpdateBatchSubjectMappingDto,
+  BatchSubjectDto, BatchSubjectMappingDto, CreateBatchSubjectMappingRequestDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
 import {
   StudentListQueryDto,
@@ -657,14 +658,14 @@ export class OrganisationsController {
   // section subject mappings
   @Get(ListSectionSubjectsAPI.path)
   @Permissions(...ListSectionSubjectsAPI.permissions)
-  @ApiResponse({ status: 200, type: [SubjectDto] })
+  @ApiResponse({ status: 200, type: [SectionSubjectDto] })
   listSectionSubjects(
     @Req() req: Request,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
     @Param('sectionId', ParseUUIDPipe) sectionId: string,
-  ): Promise<SubjectDto[]> {
+  ): Promise<SectionSubjectDto[]> {
     this.assertBranchAccess(req, orgId, branchId);
     return this.organisationsService.listSectionSubjects(orgId, branchId, academicSessionId, sectionId);
   }
@@ -703,6 +704,20 @@ export class OrganisationsController {
   }
 
   // batch subject mappings
+  @Get(ListBatchSubjectsAPI.path)
+  @Permissions(...ListBatchSubjectsAPI.permissions)
+  @ApiResponse({ status: 200, type: [BatchSubjectDto] })
+  listBatchSubjects(
+    @Req() req: Request,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @Param('academicSessionId', ParseUUIDPipe) academicSessionId: string,
+    @Param('batchId', ParseUUIDPipe) batchId: string,
+  ): Promise<BatchSubjectDto[]> {
+    this.assertBranchAccess(req, orgId, branchId);
+    return this.organisationsService.listBatchSubjects(orgId, branchId, academicSessionId, batchId);
+  }
+
   @Post(CreateBatchSubjectMappingAPI.path)
   @UseGuards(AuthGuard, PermissionsGuard)
   @Permissions(...CreateBatchSubjectMappingAPI.permissions)

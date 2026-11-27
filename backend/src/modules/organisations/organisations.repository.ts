@@ -19,10 +19,10 @@ import {
     UpdateClassSubjectMappingDto,
 } from './dtos/class-subject-mapping.dto';
 import {
-    CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto,
+    CreateSectionSubjectMappingDto, SectionSubjectDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto,
 } from './dtos/section-subject-mapping.dto';
 import {
-    BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
+    BatchSubjectDto, BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto,
 } from './dtos/batch-subject-mapping.dto';
 import {
     StudentListQueryDto,
@@ -565,12 +565,96 @@ export class OrganisationsRepository {
         }
     }
 
-    async listSectionSubjects(orgId: string, branchId: string, academicSessionId: string, sectionId: string): Promise<SubjectDto[]> {
+    private assertValidSubjectTimeSlot(startTime: string | null, endTime: string | null): void {
+        if (startTime && endTime && startTime.padEnd(8, ':00') >= endTime.padEnd(8, ':00')) {
+            throw new BadRequestException('Subject start time must be earlier than end time');
+        }
+    }
+
+    private async assertActiveBranchTeacher(
+        orgId: string,
+        branchId: string,
+        teacherUserId: string,
+        db: Knex | Knex.Transaction = knexConnection,
+    ): Promise<void> {
+        const teacher = await db('organisation_staff_table as st')
+            .join('user_roles_table as ur', function () {
+                this.on('ur.user_id', 'st.user_id').andOn('ur.org_id', 'st.org_id');
+            })
+            .join('roles_table as r', 'r.id', 'ur.role_id')
+            .where({
+                'st.org_id': orgId,
+                'st.user_id': teacherUserId,
+                'st.status': 1,
+                'ur.branch_id': branchId,
+                'ur.is_active': true,
+                'ur.is_deleted': false,
+                'r.role_name': 'teacher',
+            })
+            .first('st.user_id')
+            .forShare();
+        if (!teacher) throw new BadRequestException('Choose an active teacher assigned to this branch');
+    }
+
+    async findSectionSubjectMappingById(
+        orgId: string, branchId: string, academicSessionId: string, id: string,
+    ): Promise<{ id: string; sectionId: string; startTime: string | null; endTime: string | null } | undefined> {
+        return knexConnection('section_subjects_table as ss')
+            .join('sections_table as s', 's.id', 'ss.section_id')
+            .join('classes as c', 's.class_id', 'c.id')
+            .where({
+                'ss.id': id,
+                'ss.academic_session_id': academicSessionId,
+                's.branch_id': branchId,
+                'c.org_id': orgId,
+            })
+            .first('ss.id', 'ss.section_id as sectionId', 'ss.start_time as startTime', 'ss.end_time as endTime');
+    }
+
+    async findBatchSubjectMappingById(
+        orgId: string, branchId: string, academicSessionId: string, id: string,
+    ): Promise<{ id: string; batchId: string; startTime: string | null; endTime: string | null } | undefined> {
+        return knexConnection('batch_subjects_table as bs')
+            .join('batches_table as b', 'b.id', 'bs.batch_id')
+            .where({
+                'bs.id': id,
+                'bs.academic_session_id': academicSessionId,
+                'b.org_id': orgId,
+                'b.branch_id': branchId,
+                'b.academic_session_id': academicSessionId,
+            })
+            .first('bs.id', 'bs.batch_id as batchId', 'bs.start_time as startTime', 'bs.end_time as endTime');
+    }
+
+    async listSectionSubjects(orgId: string, branchId: string, academicSessionId: string, sectionId: string): Promise<SectionSubjectDto[]> {
         await this.findClassSectionById(sectionId, orgId, branchId);
-        return knexConnection('subjects_table').where({ organisation_id: orgId })
-            .whereIn('id', knexConnection('section_subjects_table')
-                .where({ section_id: sectionId, academic_session_id: academicSessionId }).select('subject_id'))
-            .select(subjectColumns).orderBy('subject_name');
+        return knexConnection('section_subjects_table as ss')
+            .join('subjects_table as s', 's.id', 'ss.subject_id')
+            .leftJoin('users_table as u', function () {
+                this.on('u.id', 'ss.teacher_user_id').andOn('u.org_id', 's.organisation_id');
+            })
+            .where({
+                'ss.section_id': sectionId,
+                'ss.academic_session_id': academicSessionId,
+                's.organisation_id': orgId,
+            })
+            .select(
+                'ss.id',
+                's.id as subjectId',
+                's.organisation_id as orgId',
+                's.subject_name as subjectName',
+                's.subject_code as subjectCode',
+                's.description',
+                's.status',
+                'ss.teacher_user_id as teacherUserId',
+                'u.first_name as teacherFirstName',
+                'u.last_name as teacherLastName',
+                'ss.start_time as startTime',
+                'ss.end_time as endTime',
+                'ss.created_at as createdAt',
+                'ss.updated_at as updatedAt',
+            )
+            .orderBy('s.subject_name');
     }
 
     async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {
@@ -596,7 +680,7 @@ export class OrganisationsRepository {
                 const sections = trx('sections_table as s').join('classes as c', 's.class_id', 'c.id')
                     .where({ 's.branch_id': branchId, 'c.org_id': orgId }).select('s.id');
                 const current = id ? await trx('section_subjects_table').where({ id, academic_session_id: academicSessionId })
-                    .whereIn('section_id', sections.clone()).first('section_id', 'subject_id').forUpdate() : undefined;
+                    .whereIn('section_id', sections.clone()).first('section_id', 'subject_id', 'teacher_user_id', 'start_time', 'end_time').forUpdate() : undefined;
                 if (id && !current) throw new NotFoundException('Section subject mapping not found in this branch and session');
 
                 const sectionId = data.sectionId ?? current?.section_id;
@@ -608,12 +692,30 @@ export class OrganisationsRepository {
                     .where({ 'bs.branch_id': branchId, 'bs.subject_id': subjectId, 's.organisation_id': orgId }).first('s.id').forShare();
                 if (!subject) throw new BadRequestException('Choose a subject assigned to this branch');
 
-                const values = { section_id: sectionId, subject_id: subjectId };
+                if (data.teacherUserId !== undefined && data.teacherUserId !== null) {
+                    await this.assertActiveBranchTeacher(orgId, branchId, data.teacherUserId, trx);
+                }
+
+                const teacherUserId = data.teacherUserId !== undefined
+                    ? data.teacherUserId
+                    : (current?.teacher_user_id ?? null);
+                const startTime = data.startTime !== undefined ? data.startTime : (current?.start_time ?? null);
+                const endTime = data.endTime !== undefined ? data.endTime : (current?.end_time ?? null);
+                this.assertValidSubjectTimeSlot(startTime, endTime);
+
+                const values = {
+                    section_id: sectionId,
+                    subject_id: subjectId,
+                    teacher_user_id: teacherUserId,
+                    start_time: startTime,
+                    end_time: endTime,
+                };
                 const mappings = trx('section_subjects_table');
                 const write = id ? mappings.where({ id }).update({ ...values, updated_at: trx.fn.now() })
                     : mappings.insert({ ...values, id: randomUUID(), academic_session_id: academicSessionId });
                 const [mapping] = await write.returning(['id', 'section_id as sectionId', 'subject_id as subjectId',
                     'academic_session_id as academicSessionId', 'teacher_user_id as teacherUserId',
+                    'start_time as startTime', 'end_time as endTime',
                     'created_at as createdAt', 'updated_at as updatedAt']);
                 return { ...mapping, orgId, branchId };
             });
@@ -625,6 +727,41 @@ export class OrganisationsRepository {
         }
     }
 
+    async listBatchSubjects(orgId: string, branchId: string, academicSessionId: string, batchId: string): Promise<BatchSubjectDto[]> {
+        await this.validateSessionScope(orgId, branchId, academicSessionId, false);
+        const batch = await knexConnection('batches_table')
+            .where({ id: batchId, org_id: orgId, branch_id: branchId, academic_session_id: academicSessionId })
+            .first('id');
+        if (!batch) throw new NotFoundException('Batch not found for this organisation, branch, and academic session');
+        return knexConnection('batch_subjects_table as bs')
+            .join('subjects_table as s', 's.id', 'bs.subject_id')
+            .leftJoin('users_table as u', function () {
+                this.on('u.id', 'bs.teacher_user_id').andOn('u.org_id', 's.organisation_id');
+            })
+            .where({
+                'bs.batch_id': batchId,
+                'bs.academic_session_id': academicSessionId,
+                's.organisation_id': orgId,
+            })
+            .select(
+                'bs.id',
+                's.id as subjectId',
+                's.organisation_id as orgId',
+                's.subject_name as subjectName',
+                's.subject_code as subjectCode',
+                's.description',
+                's.status',
+                'bs.teacher_user_id as teacherUserId',
+                'u.first_name as teacherFirstName',
+                'u.last_name as teacherLastName',
+                'bs.start_time as startTime',
+                'bs.end_time as endTime',
+                'bs.created_at as createdAt',
+                'bs.updated_at as updatedAt',
+            )
+            .orderBy('s.subject_name');
+    }
+
     async createBatchSubjectMapping(data: CreateBatchSubjectMappingDto): Promise<BatchSubjectMappingDto> {
         await this.validateSessionScope(data.orgId, data.branchId, data.academicSessionId, true);
         const subject = await knexConnection('subjects_table').where({ id: data.subjectId, organisation_id: data.orgId }).first('id');
@@ -633,13 +770,18 @@ export class OrganisationsRepository {
             .where({ id: data.batchId, org_id: data.orgId, branch_id: data.branchId, academic_session_id: data.academicSessionId })
             .first('id');
         if (!batch) throw new NotFoundException('Batch not found for this organisation, branch, and academic session');
+        const startTime = data.startTime ?? null;
+        const endTime = data.endTime ?? null;
+        this.assertValidSubjectTimeSlot(startTime, endTime);
         const [mapping] = await knexConnection('batch_subjects_table')
             .insert({
                 id: randomUUID(), batch_id: data.batchId, subject_id: data.subjectId,
                 academic_session_id: data.academicSessionId, teacher_user_id: null,
+                start_time: startTime, end_time: endTime,
             })
             .returning(['id', 'batch_id as batchId', 'subject_id as subjectId', 'academic_session_id as academicSessionId',
-                'teacher_user_id as teacherUserId', 'created_at as createdAt', 'updated_at as updatedAt']);
+                'teacher_user_id as teacherUserId', 'start_time as startTime', 'end_time as endTime',
+                'created_at as createdAt', 'updated_at as updatedAt']);
         return { ...mapping, orgId: data.orgId, branchId: data.branchId };
     }
 
@@ -651,7 +793,8 @@ export class OrganisationsRepository {
         const current = await knexConnection('batch_subjects_table as bs')
             .join('batches_table as b', 'bs.batch_id', 'b.id')
             .where({ 'bs.id': id, 'bs.academic_session_id': academicSessionId, 'b.org_id': orgId, 'b.branch_id': branchId, 'b.academic_session_id': academicSessionId })
-            .first('bs.batch_id as batchId', 'bs.subject_id as subjectId');
+            .first('bs.batch_id as batchId', 'bs.subject_id as subjectId', 'bs.teacher_user_id as teacherUserId',
+                'bs.start_time as startTime', 'bs.end_time as endTime');
         if (!current) throw new NotFoundException('Batch subject mapping not found in this context');
         const batchId = data.batchId ?? current.batchId;
         const subjectId = data.subjectId ?? current.subjectId;
@@ -661,15 +804,33 @@ export class OrganisationsRepository {
             id: batchId, org_id: orgId, branch_id: branchId, academic_session_id: academicSessionId,
         }).first('id');
         if (!batch) throw new NotFoundException('Batch not found in this context');
-        if (data.batchId !== undefined || data.subjectId !== undefined) {
+
+        if (data.teacherUserId !== undefined && data.teacherUserId !== null) {
+            await this.assertActiveBranchTeacher(orgId, branchId, data.teacherUserId);
+        }
+
+        const teacherUserId = data.teacherUserId !== undefined ? data.teacherUserId : current.teacherUserId;
+        const startTime = data.startTime !== undefined ? data.startTime : current.startTime;
+        const endTime = data.endTime !== undefined ? data.endTime : current.endTime;
+        this.assertValidSubjectTimeSlot(startTime, endTime);
+
+        if (
+            data.batchId !== undefined || data.subjectId !== undefined || data.teacherUserId !== undefined
+            || data.startTime !== undefined || data.endTime !== undefined
+        ) {
             await knexConnection('batch_subjects_table').where({ id }).update({
-                batch_id: batchId, subject_id: subjectId,
+                batch_id: batchId,
+                subject_id: subjectId,
+                teacher_user_id: teacherUserId,
+                start_time: startTime,
+                end_time: endTime,
                 updated_at: knexConnection.fn.now(),
             });
         }
         const [mapping] = await knexConnection('batch_subjects_table')
             .where({ id }).select('id', 'batch_id as batchId', 'subject_id as subjectId',
                 'academic_session_id as academicSessionId', 'teacher_user_id as teacherUserId',
+                'start_time as startTime', 'end_time as endTime',
                 'created_at as createdAt', 'updated_at as updatedAt');
         return { ...mapping, orgId, branchId };
     }

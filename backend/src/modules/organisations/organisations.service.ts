@@ -13,8 +13,8 @@ import {
   CreateClassSubjectMappingDto,
   UpdateClassSubjectMappingDto,
 } from './dtos/class-subject-mapping.dto';
-import { CreateSectionSubjectMappingDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
-import { BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
+import { CreateSectionSubjectMappingDto, SectionSubjectDto, SectionSubjectMappingDto, UpdateSectionSubjectMappingDto } from './dtos/section-subject-mapping.dto';
+import { BatchSubjectDto, BatchSubjectMappingDto, CreateBatchSubjectMappingDto, UpdateBatchSubjectMappingDto } from './dtos/batch-subject-mapping.dto';
 import {
   StudentListQueryDto,
   StudentListPage,
@@ -455,12 +455,43 @@ export class OrganisationsService {
     }
   }
 
-  async listSectionSubjects(orgId: string, branchId: string, academicSessionId: string, sectionId: string): Promise<SubjectDto[]> {
+  private assertNoSubjectTimeOverlap(
+    subjects: Array<{ id: string; subjectName: string; startTime?: string | null; endTime?: string | null }>,
+    targetId: string | undefined,
+    startTime: string | null | undefined,
+    endTime: string | null | undefined,
+  ): void {
+    const normalize = (value: string): string => value.padEnd(8, ':00');
+    if (startTime && endTime && normalize(startTime) >= normalize(endTime)) {
+      throw new BadRequestException('Subject start time must be earlier than end time');
+    }
+    if (!startTime || !endTime) return;
+    const nextStart = normalize(startTime);
+    const nextEnd = normalize(endTime);
+    const conflict = subjects.find((item) => (
+      item.id !== targetId
+      && item.startTime
+      && item.endTime
+      && nextStart < normalize(item.endTime)
+      && nextEnd > normalize(item.startTime)
+    ));
+    if (conflict) {
+      throw new BadRequestException(`Time slot overlaps with ${conflict.subjectName}`);
+    }
+  }
+
+  async listSectionSubjects(orgId: string, branchId: string, academicSessionId: string, sectionId: string): Promise<SectionSubjectDto[]> {
     return this.organisationsRepository.listSectionSubjects(orgId, branchId, academicSessionId, sectionId);
   }
 
   async createSectionSubjectMapping(data: CreateSectionSubjectMappingDto): Promise<SectionSubjectMappingDto> {
     try {
+      if (data.startTime !== undefined || data.endTime !== undefined) {
+        const subjects = await this.organisationsRepository.listSectionSubjects(
+          data.orgId, data.branchId, data.academicSessionId, data.sectionId,
+        );
+        this.assertNoSubjectTimeOverlap(subjects, undefined, data.startTime, data.endTime);
+      }
       const mapping = await this.organisationsRepository.createSectionSubjectMapping(data);
       this.logger.log(`Created section subject mapping ${mapping.id}`);
       return mapping;
@@ -474,6 +505,16 @@ export class OrganisationsService {
     orgId: string, branchId: string, academicSessionId: string, id: string, data: UpdateSectionSubjectMappingDto,
   ): Promise<SectionSubjectMappingDto> {
     try {
+      if (data.startTime !== undefined || data.endTime !== undefined || data.sectionId !== undefined) {
+        const current = await this.organisationsRepository.findSectionSubjectMappingById(orgId, branchId, academicSessionId, id);
+        const sectionId = data.sectionId ?? current?.sectionId;
+        if (sectionId) {
+          const subjects = await this.organisationsRepository.listSectionSubjects(orgId, branchId, academicSessionId, sectionId);
+          const effectiveStart = data.startTime !== undefined ? data.startTime : current?.startTime;
+          const effectiveEnd = data.endTime !== undefined ? data.endTime : current?.endTime;
+          this.assertNoSubjectTimeOverlap(subjects, id, effectiveStart, effectiveEnd);
+        }
+      }
       const mapping = await this.organisationsRepository.updateSectionSubjectMapping(orgId, branchId, academicSessionId, id, data);
       this.logger.log(`Updated section subject mapping ${id}`);
       return mapping;
@@ -483,8 +524,18 @@ export class OrganisationsService {
     }
   }
 
+  async listBatchSubjects(orgId: string, branchId: string, academicSessionId: string, batchId: string): Promise<BatchSubjectDto[]> {
+    return this.organisationsRepository.listBatchSubjects(orgId, branchId, academicSessionId, batchId);
+  }
+
   async createBatchSubjectMapping(data: CreateBatchSubjectMappingDto): Promise<BatchSubjectMappingDto> {
     try {
+      if (data.startTime !== undefined || data.endTime !== undefined) {
+        const subjects = await this.organisationsRepository.listBatchSubjects(
+          data.orgId, data.branchId, data.academicSessionId, data.batchId,
+        );
+        this.assertNoSubjectTimeOverlap(subjects, undefined, data.startTime, data.endTime);
+      }
       const mapping = await this.organisationsRepository.createBatchSubjectMapping(data);
       this.logger.log(`Created batch subject mapping ${mapping.id}`);
       return mapping;
@@ -498,6 +549,16 @@ export class OrganisationsService {
     orgId: string, branchId: string, academicSessionId: string, id: string, data: UpdateBatchSubjectMappingDto,
   ): Promise<BatchSubjectMappingDto> {
     try {
+      if (data.startTime !== undefined || data.endTime !== undefined || data.batchId !== undefined) {
+        const current = await this.organisationsRepository.findBatchSubjectMappingById(orgId, branchId, academicSessionId, id);
+        const batchId = data.batchId ?? current?.batchId;
+        if (batchId) {
+          const subjects = await this.organisationsRepository.listBatchSubjects(orgId, branchId, academicSessionId, batchId);
+          const effectiveStart = data.startTime !== undefined ? data.startTime : current?.startTime;
+          const effectiveEnd = data.endTime !== undefined ? data.endTime : current?.endTime;
+          this.assertNoSubjectTimeOverlap(subjects, id, effectiveStart, effectiveEnd);
+        }
+      }
       const mapping = await this.organisationsRepository.updateBatchSubjectMapping(orgId, branchId, academicSessionId, id, data);
       this.logger.log(`Updated batch subject mapping ${id}`);
       return mapping;

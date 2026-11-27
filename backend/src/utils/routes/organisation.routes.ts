@@ -490,6 +490,19 @@ export const UpdateSectionSubjectMappingAPI = {
   sample: '/<orgId>/<branchId>/<academicSessionId>/section-subjects/update/<id>',
 };
 
+export const ListBatchSubjectsAPI = {
+  path: '/:orgId/:branchId/:academicSessionId/batches/:batchId/subjects',
+  endpoint: [
+    `${Service.ORGANISATION_API_PREFIX}:orgId/:branchId/:academicSessionId/batches/:batchId/subjects`,
+    `${Service.ORGANISATION_API_PREFIX}v1/:orgId/:branchId/:academicSessionId/batches/:batchId/subjects`,
+  ],
+  method: RequestMethod.GET,
+  argument: ['orgId', 'branchId', 'academicSessionId', 'batchId'],
+  permissions: [PermissionEnum.GET_CLASS_BATCH_LIST],
+  service: Service.ORGANISATION_SERVICE,
+  sample: '/<orgId>/<branchId>/<academicSessionId>/batches/<batchId>/subjects',
+};
+
 export const CreateBatchSubjectMappingAPI = {
   path: '/:orgId/:branchId/:academicSessionId/batch-subjects/create',
   endpoint: [
