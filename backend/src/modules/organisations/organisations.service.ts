@@ -3,7 +3,7 @@ import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrg
 import { OrganisationsRepository } from './organisations.repository';
 import { RbacService } from '../rbac/rbac.service';
 import { BranchDto, CreateBranchDto, UpdateBranchDto } from './dtos/branch.dto';
-import { ClassDto, CreateClassDto, UpdateClassDto } from './dtos/class.dto';
+import { ClassDto, CreateClassDto, TeachingClassDto, UpdateClassDto } from './dtos/class.dto';
 import { ClassSectionDto, CreateClassSectionDto, UpdateClassSectionDto } from './dtos/class-section.dto';
 import { ClassBatchDto, CreateClassBatchDto, UpdateClassBatchDto } from './dtos/class-batch.dto';
 import { CreateOrgAcademicSessionDto, OrgAcademicSessionDto, UpdateOrgAcademicSessionDto } from './dtos/org-academic-session.dto';
@@ -102,7 +102,7 @@ export class OrganisationsService {
     }
   }
 
-  async teachingClasses(orgId: string, branchId: string, userId: string): Promise<ClassDto[]> {
+  async teachingClasses(orgId: string, branchId: string, userId: string): Promise<TeachingClassDto[]> {
     try {
       return await this.organisationsRepository.teachingClasses(orgId, branchId, userId);
     } catch (error) {
@@ -568,8 +568,18 @@ export class OrganisationsService {
     }
   }
 
-  async getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
+  async getStudentList(
+    orgId: string,
+    branchId: string,
+    groupType: StudentGroupType,
+    groupId: string,
+    query: StudentListQueryDto,
+    teacherUserId?: string,
+  ): Promise<StudentListPage> {
     try {
+      if (teacherUserId) {
+        await this.organisationsRepository.assertTeacherGroupAccess(orgId, branchId, teacherUserId, groupType, groupId);
+      }
       return await this.organisationsRepository.getStudentList(orgId, branchId, groupType, groupId, query);
     } catch (error) {
       this.logger.error(`Failed to fetch student list for ${groupType} ${groupId}`, error);

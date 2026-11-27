@@ -11,8 +11,19 @@ interface ListRoute {
 
 export default async function StudentListRoute({ params, searchParams }: ListRoute): Promise<ReactElement> {
   const { classId, groupType, groupId } = await params;
-  const { manager } = await requireActiveDashboardContext(await searchParams);
-  if (!manager) redirect("/dashboard");
+  const { manager, teacher } = await requireActiveDashboardContext(await searchParams);
+  const branchContext = manager ?? teacher;
+  if (!branchContext) redirect("/dashboard");
   if (groupType !== "sections" && groupType !== "batches") notFound();
-  return <StudentListPage key={groupId} {...manager} classId={classId} groupId={groupId} groupType={groupType} />;
+  return (
+    <StudentListPage
+      key={groupId}
+      orgId={branchContext.orgId}
+      branchId={branchContext.branchId}
+      classId={classId}
+      groupId={groupId}
+      groupType={groupType}
+      readOnly={Boolean(teacher && !manager)}
+    />
+  );
 }

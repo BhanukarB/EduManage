@@ -56,7 +56,7 @@ import {
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { BranchDto, CreateBranchRequestDto, UpdateBranchDto } from './dtos/branch.dto';
 import { AddOrganisationStaffDto, OrganisationStaffDto, UpdateOrganisationStaffDto, OrganisationStaffPageDto, StaffPageQueryDto } from './dtos/organisation-staff.dto';
-import { ClassDto, CreateClassRequestDto, UpdateClassDto } from './dtos/class.dto';
+import { ClassDto, CreateClassRequestDto, TeachingClassDto, UpdateClassDto } from './dtos/class.dto';
 import { ClassSectionDto, CreateClassSectionRequestDto, UpdateClassSectionDto } from './dtos/class-section.dto';
 import { ClassBatchDto, CreateClassBatchRequestDto, UpdateClassBatchDto } from './dtos/class-batch.dto';
 import {
@@ -306,8 +306,14 @@ export class OrganisationsController {
 
   @Get(MyTeachingClassesAPI.path)
   @Permissions(...MyTeachingClassesAPI.permissions)
-  teachingClasses(@Req() req: { user: { uid: string; roles: string[] } },
-    @Param('orgId', ParseUUIDPipe) orgId: string, @Param('branchId', ParseUUIDPipe) branchId: string): Promise<ClassDto[]> {
+  @ApiOperation({ summary: 'List classes and subjects assigned to the signed-in teacher in a branch' })
+  @ApiResponse({ status: 200, type: TeachingClassDto, isArray: true })
+  teachingClasses(
+    @Req() req: { user: { uid: string; orgId?: string; roles: string[] } },
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+  ): Promise<TeachingClassDto[]> {
+    this.assertOrganisationAccess(req, orgId);
     if (!req.user.roles.includes('teacher')) throw new ForbiddenException('Select a teaching assignment');
     return this.organisationsService.teachingClasses(orgId, branchId, req.user.uid);
   }
@@ -803,7 +809,7 @@ export class OrganisationsController {
   @Get(GetStudentListAPI.path)
   @Permissions(...GetStudentListAPI.permissions)
   getStudentList(
-    @Req() req: { user: { orgId: string; branchId?: string; roles: string[] } },
+    @Req() req: { user: { uid: string; orgId: string; branchId?: string; roles: string[] } },
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('branchId', ParseUUIDPipe) branchId: string,
     @Param('groupType', new ParseEnumPipe(StudentGroupType)) groupType: StudentGroupType,
@@ -811,7 +817,9 @@ export class OrganisationsController {
     @Query(new ValidationPipe({ transform: true, whitelist: true })) query: StudentListQueryDto,
   ): Promise<StudentListPage> {
     this.assertBranchAccess(req, orgId, branchId);
-    return this.organisationsService.getStudentList(orgId, branchId, groupType, groupId, query);
+    const isAdminOrManager = req.user.roles.some((role) => ['super_admin', 'org_admin', 'branch_manager'].includes(role));
+    const teacherUserId = !isAdminOrManager && req.user.roles.includes('teacher') ? req.user.uid : undefined;
+    return this.organisationsService.getStudentList(orgId, branchId, groupType, groupId, query, teacherUserId);
   }
 
   @Post(AddStudentToOrgAPI.path)

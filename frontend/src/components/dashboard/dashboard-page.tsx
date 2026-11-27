@@ -6,7 +6,6 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { SuperUserDashboard } from "@/components/super-user/super-user-dashboard";
 import { OrganisationAdminDashboard } from "@/components/org-admin/org-admin-dashboard";
 import { BranchDetailsPage } from "@/components/branch/branch-details-page";
-import { TeachingDashboard } from "@/components/teacher/teaching-dashboard";
 import type { requireActiveDashboardContext } from "@/lib/auth-server";
 
 type ActiveContext = Awaited<ReturnType<typeof requireActiveDashboardContext>>;
@@ -20,7 +19,7 @@ export default async function DashboardPage({ section, context }: { section: "Da
   if (section !== "Dashboard" && (superUser || manager || !organisationId)) redirect("/dashboard");
   if (superUser) return <SuperUserDashboard activeSection="Organisations" />;
   if (manager) return <BranchDetailsPage key={`${manager.orgId}:${manager.branchId}`} {...manager} branchManager />;
-  if (teacher) return <TeachingDashboard key={`${teacher.orgId}:${teacher.branchId}`} {...teacher} />;
+  if (teacher) redirect(`/classes${context?.activeRoleId ? `?role=${context.activeRoleId}&org=${teacher.orgId}&branch=${teacher.branchId}` : ""}`);
   if (organisationId) return <OrganisationAdminDashboard key={organisationId} orgId={organisationId} section={section} />;
 
   return (

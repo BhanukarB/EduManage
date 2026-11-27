@@ -8,7 +8,7 @@ import type { Knex } from 'knex';
 import knexConnection from '../../db/connector/knex';
 import { CreateOrganisationDto, OrganisationAdminDto, OrganisationDto, UpdateOrganisationDto } from './dtos/organisation.dto';
 import { BranchDto, CreateBranchDto, UpdateBranchDto } from './dtos/branch.dto';
-import { ClassDto, CreateClassDto, UpdateClassDto } from './dtos/class.dto';
+import { ClassDto, CreateClassDto, TeachingClassDto, UpdateClassDto } from './dtos/class.dto';
 import { ClassSectionDto, CreateClassSectionDto, UpdateClassSectionDto } from './dtos/class-section.dto';
 import { ClassBatchDto, CreateClassBatchDto, UpdateClassBatchDto } from './dtos/class-batch.dto';
 import { CreateOrgAcademicSessionDto, OrgAcademicSessionDto, UpdateOrgAcademicSessionDto } from './dtos/org-academic-session.dto';
@@ -91,6 +91,45 @@ const subjectColumns = [
 
 @Injectable()
 export class OrganisationsRepository {
+    async assertTeacherGroupAccess(
+        orgId: string,
+        branchId: string,
+        userId: string,
+        groupType: StudentGroupType,
+        groupId: string,
+    ): Promise<void> {
+        const isSection = groupType === StudentGroupType.Sections;
+        const assignment = isSection
+            ? await knexConnection('section_subjects_table as ss')
+                .join('sections_table as sec', 'sec.id', 'ss.section_id')
+                .join('classes as c', 'c.id', 'sec.class_id')
+                .join('academic_sessions_table as ses', 'ses.id', 'ss.academic_session_id')
+                .where({
+                    'ss.section_id': groupId,
+                    'ss.teacher_user_id': userId,
+                    'sec.branch_id': branchId,
+                    'c.org_id': orgId,
+                    'ses.org_id': orgId,
+                    'ses.status': 1,
+                })
+                .first('ss.id')
+            : await knexConnection('batch_subjects_table as bs')
+                .join('batches_table as b', 'b.id', 'bs.batch_id')
+                .join('academic_sessions_table as ses', 'ses.id', 'bs.academic_session_id')
+                .where({
+                    'bs.batch_id': groupId,
+                    'bs.teacher_user_id': userId,
+                    'b.org_id': orgId,
+                    'b.branch_id': branchId,
+                    'ses.org_id': orgId,
+                    'ses.status': 1,
+                })
+                .first('bs.id');
+        if (!assignment) {
+            throw new ForbiddenException('You are not assigned to this class group');
+        }
+    }
+
     async getStudentList(orgId: string, branchId: string, groupType: StudentGroupType, groupId: string, query: StudentListQueryDto): Promise<StudentListPage> {
         const section = groupType === StudentGroupType.Sections;
         const groupRow = await knexConnection(section ? 'sections_table as g' : 'batches_table as g')
@@ -1263,11 +1302,77 @@ export class OrganisationsRepository {
         return knexConnection('classes').where({ org_id: orgId }).select(classColumns).orderBy('created_at', 'desc');
     }
 
-    async teachingClasses(orgId: string, branchId: string, userId: string): Promise<ClassDto[]> {
-        const duties = knexConnection('teacher_class_table as t').join('class_subjects_table as cs', 'cs.id', 't.class_subject_id')
-            .where({ 't.user_id': userId, 't.is_active': true, 'cs.is_active': true, 'cs.branch_id': branchId, 'cs.org_id': orgId })
-            .select('cs.class_id');
-        return knexConnection('classes').where({ org_id: orgId }).whereIn('id', duties).select(classColumns).orderBy('class_name');
+    async teachingClasses(orgId: string, branchId: string, userId: string): Promise<TeachingClassDto[]> {
+        const sectionAssignments = knexConnection('section_subjects_table as ss')
+            .join('sections_table as sec', 'sec.id', 'ss.section_id')
+            .join('classes as c', 'c.id', 'sec.class_id')
+            .join('subjects_table as sub', 'sub.id', 'ss.subject_id')
+            .join('academic_sessions_table as ses', 'ses.id', 'ss.academic_session_id')
+            .where({
+                'ss.teacher_user_id': userId,
+                'sec.branch_id': branchId,
+                'c.org_id': orgId,
+                'sub.organisation_id': orgId,
+                'ses.org_id': orgId,
+                'ses.status': 1,
+            })
+            .select(
+                'ss.id',
+                'c.id as classId',
+                'c.class_name as className',
+                'c.class_code as classCode',
+                knexConnection.raw(`'section' as "groupType"`),
+                'sec.id as groupId',
+                'sec.section_code as groupName',
+                'sec.section_code as groupCode',
+                'sub.id as subjectId',
+                'sub.subject_name as subjectName',
+                'sub.subject_code as subjectCode',
+                'ses.id as academicSessionId',
+                'ses.session_name as sessionName',
+                'ss.start_time as startTime',
+                'ss.end_time as endTime',
+            );
+
+        const batchAssignments = knexConnection('batch_subjects_table as bs')
+            .join('batches_table as b', 'b.id', 'bs.batch_id')
+            .join('classes as c', 'c.id', 'b.class_id')
+            .join('subjects_table as sub', 'sub.id', 'bs.subject_id')
+            .join('academic_sessions_table as ses', 'ses.id', 'bs.academic_session_id')
+            .where({
+                'bs.teacher_user_id': userId,
+                'b.org_id': orgId,
+                'b.branch_id': branchId,
+                'c.org_id': orgId,
+                'sub.organisation_id': orgId,
+                'ses.org_id': orgId,
+                'ses.status': 1,
+            })
+            .select(
+                'bs.id',
+                'c.id as classId',
+                'c.class_name as className',
+                'c.class_code as classCode',
+                knexConnection.raw(`'batch' as "groupType"`),
+                'b.id as groupId',
+                'b.batch_name as groupName',
+                'b.batch_code as groupCode',
+                'sub.id as subjectId',
+                'sub.subject_name as subjectName',
+                'sub.subject_code as subjectCode',
+                'ses.id as academicSessionId',
+                'ses.session_name as sessionName',
+                'bs.start_time as startTime',
+                'bs.end_time as endTime',
+            );
+
+        const [sections, batches] = await Promise.all([sectionAssignments, batchAssignments]);
+        return [...sections, ...batches].sort((a, b) =>
+            a.className.localeCompare(b.className)
+            || a.groupName.localeCompare(b.groupName)
+            || (a.startTime ?? '').localeCompare(b.startTime ?? '')
+            || a.subjectName.localeCompare(b.subjectName),
+        );
     }
 
     async findClassListByBranch(orgId: string, branchId: string, classId?: string): Promise<ClassDto[]> {

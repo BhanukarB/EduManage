@@ -51,3 +51,50 @@ export class ClassDto {
   @ApiProperty()
   updatedAt: Date;
 }
+
+export class TeachingClassDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  classId: string;
+
+  @ApiProperty()
+  className: string;
+
+  @ApiProperty()
+  classCode: string;
+
+  @ApiProperty({ enum: ['section', 'batch'] })
+  groupType: 'section' | 'batch';
+
+  @ApiProperty()
+  groupId: string;
+
+  @ApiProperty()
+  groupName: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  groupCode?: string | null;
+
+  @ApiProperty()
+  subjectId: string;
+
+  @ApiProperty()
+  subjectName: string;
+
+  @ApiProperty()
+  subjectCode: string;
+
+  @ApiProperty()
+  academicSessionId: string;
+
+  @ApiProperty()
+  sessionName: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  startTime?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  endTime?: string | null;
+}

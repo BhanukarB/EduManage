@@ -11,6 +11,8 @@ import { SectionHeader } from "@/components/pages/section-details-page";
 import { PageHeader } from "@/components/common/page-header";
 import type { AcademicSession } from "@/types/domain";
 
+import { useActiveContextQuery } from "@/lib/active-context";
+
 interface Contact {
   firstName: string;
   middleName: string | null;
@@ -54,6 +56,7 @@ interface StudentListProps {
   classId: string;
   groupId: string;
   groupType: "sections" | "batches";
+  readOnly?: boolean;
 }
 const fields = [
   ["firstName", "First name"], ["lastName", "Last name"], ["emailId", "Email"],
@@ -65,7 +68,8 @@ function name(contact: Contact): string {
   return [contact.firstName, contact.middleName, contact.lastName].filter(Boolean).join(" ");
 }
 
-export function StudentListPage({ orgId, branchId, classId, groupId, groupType }: StudentListProps): ReactElement {
+export function StudentListPage({ orgId, branchId, classId, groupId, groupType, readOnly = false }: StudentListProps): ReactElement {
+  const contextQuery = useActiveContextQuery();
   const search = useSearchParams();
   const page = search.get("page") ?? "1";
   const pageSize = search.get("pageSize") ?? "10";
@@ -90,12 +94,13 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
   const [revision, setRevision] = useState(0);
   const [sessions, setSessions] = useState<AcademicSession[] | null>(null);
   useEffect(() => {
+    if (readOnly) return;
     let active = true;
     readApi<AcademicSession[]>(`organisations/${orgId}/academic-sessions`, 30_000)
       .then((data) => { if (active) setSessions(data); })
       .catch(() => { if (active) setSessions([]); });
     return () => { active = false; };
-  }, [orgId]);
+  }, [orgId, readOnly]);
   const groupSession = groupType === "sections"
     ? sessions?.find((session) => session.status === 1)
     : sessions?.find((session) => session.id === group?.academicSessionId);
@@ -199,22 +204,22 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType }
     window.history.pushState(null, "", url);
   }
 
-  const addStudentAction = group && <Button variant="contained" disabled={!isActiveSession}
-    onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button>;
+  const addStudentAction = !readOnly && group ? <Button variant="contained" disabled={!isActiveSession}
+    onClick={() => { setConfirmation(""); setAdding(true); }}>Add student</Button> : undefined;
 
   return <BranchWorkspace>
-    {groupType === "sections" ? (
+    {!readOnly && groupType === "sections" ? (
       <SectionHeader classId={classId} sectionId={groupId} name={group?.name} tab="students" action={addStudentAction} />
     ) : <>
     <Breadcrumbs aria-label="Breadcrumb" sx={{ mb: 3 }}>
-      <MuiLink component={Link} href="/classes">Classes</MuiLink>
-      <MuiLink component={Link} href={`/classes/${classId}`}>{group?.className ?? "Class details"}</MuiLink>
+      <MuiLink component={Link} href={`/classes${contextQuery}`}>Classes</MuiLink>
+      {!readOnly && <MuiLink component={Link} href={`/classes/${classId}${contextQuery}`}>{group?.className ?? "Class details"}</MuiLink>}
       <Typography color="text.primary">Students</Typography>
     </Breadcrumbs>
     <PageHeader title="Student list" subtitle={group && `${group.className} · ${group.name}`}
       action={addStudentAction} />
     </>}
-    {group && sessions && !isActiveSession && (
+    {!readOnly && group && sessions && !isActiveSession && (
       <Alert severity="info" sx={{ mb: 2 }}>
         Student enrollment requires an active academic session.
       </Alert>

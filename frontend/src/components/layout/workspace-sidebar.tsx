@@ -81,7 +81,8 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
     const chosenBranch = validBranchId ? match.branchId : eligible.length === 1 ? eligible[0].branchId : null;
     if (chosenBranch) params.set("branch", chosenBranch);
     localStorage.setItem(`cm_context_${roleId}`, chosenBranch ?? "");
-    router.push(`/dashboard?${params.toString()}`);
+    const targetPath = match.name === "teacher" ? "/classes" : "/dashboard";
+    router.push(`${targetPath}?${params.toString()}`);
   }
 
   function toggleSidebar(): void {
@@ -120,7 +121,7 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
               {branchOptions.map(item => <MenuItem key={item.branchId} value={item.branchId ?? ""}>{item.branchName}</MenuItem>)}
             </TextField>}
           </Stack>}
-          {navigation[selectedRole].filter(item => selected?.name !== "teacher" || ["Dashboard", "Classes"].includes(item.label)).map((item) => {
+          {navigation[selectedRole].filter(item => selected?.name !== "teacher" || item.label === "Classes").map((item) => {
             const context = selected ? `?role=${selected.roleId}${selected.orgId ? `&org=${selected.orgId}` : ""}${selected.branchId ? `&branch=${selected.branchId}` : ""}` : "";
             return (
             <ListItemButton

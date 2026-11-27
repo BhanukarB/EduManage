@@ -7,8 +7,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const params = await searchParams;
   const context = await requireActiveDashboardContext(params);
   if (params.role && !context.activeRoleId) redirect("/dashboard");
+  if (context.teacher) {
+    redirect(`/classes?role=${context.activeRoleId}&org=${context.teacher.orgId}&branch=${context.teacher.branchId}`);
+  }
   if (!params.role && context.activeRoleId) {
-    const scope = context.manager ?? context.teacher;
+    const scope = context.manager;
     redirect(`/dashboard?role=${context.activeRoleId}${context.organisationId ? `&org=${context.organisationId}` : ""}${scope ? `&org=${scope.orgId}&branch=${scope.branchId}` : ""}`);
   }
   return <DashboardPage section="Dashboard" context={context} />;
