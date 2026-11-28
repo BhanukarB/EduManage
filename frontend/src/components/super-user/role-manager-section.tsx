@@ -26,7 +26,7 @@ export function RoleManagerSection({ roles, permissions, loading, error, notice,
   const [search, setSearch] = useState("");
   const filteredRoles = useMemo(() => roles.filter((role) => role.name.toLowerCase().includes(search.trim().toLowerCase())), [roles, search]);
   return <Paper elevation={0} sx={{ border: "1px solid", borderColor: "divider", minHeight: 360, overflow: "hidden" }}>
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, px: { xs: 2, md: 3 }, py: 1, bgcolor: "grey.50" }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", flexDirection: { xs: "column", sm: "row" }, alignItems: { xs: "stretch", sm: "center" }, gap: { xs: 1, sm: 2 }, px: { xs: 2, md: 3 }, py: 1, bgcolor: "grey.50" }}>
       <Tabs value={activeTab} onChange={(_, value: number) => onTabChange(value)} aria-label="Role manager sections" variant="scrollable" scrollButtons="auto">
         <Tab label="Roles" /><Tab label="Permissions" />
       </Tabs>

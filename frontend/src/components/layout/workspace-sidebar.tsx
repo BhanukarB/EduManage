@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import MenuOutlined from "@mui/icons-material/MenuOutlined";
 import MenuOpenOutlined from "@mui/icons-material/MenuOpenOutlined";
@@ -11,7 +11,8 @@ import CalendarMonthOutlined from "@mui/icons-material/CalendarMonthOutlined";
 import GroupsOutlined from "@mui/icons-material/GroupsOutlined";
 import SchoolOutlined from "@mui/icons-material/SchoolOutlined";
 import AdminPanelSettingsOutlined from "@mui/icons-material/AdminPanelSettingsOutlined";
-import { Avatar, Box, IconButton, Tooltip, List, ListItemButton, ListItemIcon, ListItemText, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Avatar, Box, Drawer, useMediaQuery, useTheme, IconButton, Tooltip, List, ListItemButton, ListItemIcon, ListItemText, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { ProfileLink } from "@/components/profile-link";
 import { api } from "@/lib/api";
 import type { Assignment } from "@/types/domain";
 
@@ -37,11 +38,14 @@ const navigation = {
   ],
 };
 
-export function WorkspaceSidebar({ role, email, initiallyHidden }: {
+export function WorkspaceShell({ role, email, initiallyHidden, children }: {
   role: keyof typeof navigation;
   email?: string;
   initiallyHidden: boolean;
+  children: ReactNode;
 }): ReactElement {
+  const mobile = useMediaQuery(useTheme().breakpoints.down("sm"));
+  const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -60,7 +64,7 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
     : selected?.name === "branch_manager" || selected?.name === "teacher" ? "branch" : role;
   const branchOptions = selected ? assignments.filter(item => item.roleId === selected.roleId && item.branchId) : [];
   useEffect(() => {
-    if (!requestedRole && selected) selectContext(selected.roleId, selected.branchId ?? undefined);
+    if (!requestedRole && selected) selectContext(selected.roleId, selected.branchId ?? undefined, true);
   // The selected assignment is loaded asynchronously, then normalized into the URL once.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedRole, selected?.roleId]);
@@ -70,19 +74,24 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
   if (selectedRole === "branch" && section === "/branches") section = "/dashboard";
   if (selectedRole === "super" && section === "/dashboard") section = "/organisations";
 
-  function selectContext(roleId: string, branchId?: string): void {
+  function selectContext(roleId: string, branchId?: string, preservePath = false): void {
     const eligible = assignments.filter(item => item.roleId === roleId && item.branchId);
     const validBranchId = branchId && eligible.some(item => item.branchId === branchId) ? branchId : undefined;
     const match = assignments.find(item => item.roleId === roleId && (!validBranchId || item.branchId === validBranchId))
       ?? assignments.find(item => item.roleId === roleId);
     if (!match) return;
-    const params = new URLSearchParams({ role: match.roleId });
+    const params = new URLSearchParams(preservePath ? searchParams.toString() : "");
+    params.set("role", match.roleId);
     if (match.orgId) params.set("org", match.orgId);
+    else params.delete("org");
     const chosenBranch = validBranchId ? match.branchId : eligible.length === 1 ? eligible[0].branchId : null;
     if (chosenBranch) params.set("branch", chosenBranch);
+    else params.delete("branch");
     localStorage.setItem(`cm_context_${roleId}`, chosenBranch ?? "");
     const targetPath = match.name === "teacher" ? "/classes" : "/dashboard";
-    router.push(`${targetPath}?${params.toString()}`);
+    setMenuOpen(false);
+    if (preservePath) router.replace(`${pathname}?${params.toString()}`);
+    else router.push(`${targetPath}?${params.toString()}`);
   }
 
   function toggleSidebar(): void {
@@ -90,24 +99,25 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
     setHidden(!hidden);
   }
 
-  return (
-    <Box component="aside" sx={{
+  const expanded = mobile || !hidden;
+  const sidebar = (
+    <Box component="nav" aria-label="Workspace" sx={{
       position: "sticky", top: 0, height: "100dvh", overflowY: "auto",
-      width: hidden ? 48 : compact ? { xs: 72, sm: 240 } : { xs: 72, sm: 260 }, flexShrink: 0,
+      width: expanded ? (compact ? 240 : 260) : 48, maxWidth: "85vw", flexShrink: 0,
       bgcolor: "background.paper", borderRight: "1px solid", borderColor: "divider",
-      p: hidden ? 0.5 : compact ? { xs: 1, sm: 2 } : { xs: 1, sm: 2.5 }, display: "flex", flexDirection: "column",
-      pt: { xs: 2, sm: 3 }, transition: "width 0.2s ease",
+      p: expanded ? (compact ? 2 : 2.5) : 0.5, display: mobile ? "flex" : { xs: "none", sm: "flex" }, flexDirection: "column",
+      pt: 3, transition: "width 0.2s ease",
     }}>
-      <Tooltip title={toggleLabel} placement="right">
-        <IconButton aria-label={toggleLabel} aria-expanded={!hidden} aria-controls="workspace-navigation"
-          onClick={toggleSidebar} sx={{ alignSelf: "center", mb: 1 }}>
-          {hidden ? <MenuOutlined /> : <MenuOpenOutlined />}
+      <Tooltip title={mobile ? "Close navigation" : toggleLabel} placement="right">
+        <IconButton aria-label={mobile ? "Close navigation" : toggleLabel} aria-expanded={expanded} aria-controls="workspace-navigation"
+          onClick={mobile ? () => setMenuOpen(false) : toggleSidebar} sx={{ alignSelf: "center", mb: 1 }}>
+          {expanded ? <MenuOpenOutlined /> : <MenuOutlined />}
         </IconButton>
       </Tooltip>
-      <Box id="workspace-navigation" sx={{ display: hidden ? "none" : "flex", flexDirection: "column", flex: 1 }}>
+      <Box id="workspace-navigation" sx={{ display: expanded ? "flex" : "none", flexDirection: "column", flex: 1 }}>
         <Typography variant="overline" color="primary.main" fontWeight={800} letterSpacing={1.5}
-          sx={{ px: { xs: 0, sm: 1 }, textAlign: { xs: "center", sm: "left" }, mb: 2.5, pb: 2, borderBottom: "1px solid", borderColor: "divider", whiteSpace: "nowrap", overflow: "hidden" }}>
-          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>CLASSMANAGE</Box><Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 900 }}>C</Box>
+          sx={{ px: 1, mb: 2.5, pb: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+          CLASSMANAGE
         </Typography>
         <List disablePadding>
           {roleAssignments.length > 0 && <Stack spacing={1.5} sx={{ mb: 2 }}>
@@ -126,6 +136,7 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
             return (
             <ListItemButton
               key={item.label}
+              onClick={() => setMenuOpen(false)}
               aria-label={item.label}
               aria-current={section === item.href ? "page" : undefined}
               component={Link}
@@ -141,16 +152,40 @@ export function WorkspaceSidebar({ role, email, initiallyHidden }: {
                 },
               }}
             >
-              <ListItemIcon sx={{ minWidth: { xs: 0, sm: 40 }, color: "inherit", justifyContent: "center" }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} sx={{ display: { xs: "none", sm: "block" } }} />
+              <ListItemIcon sx={{ minWidth: 40, color: "inherit", justifyContent: "center" }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} />
             </ListItemButton>
           );})}
         </List>
         <Box sx={{ flexGrow: 1 }} />
-        {email && <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems="center" sx={{ px: { sm: 1 }, py: 1.5, mb: 0.5, overflow: "hidden" }}>
+        {email && <Stack direction="row" spacing={1.25} alignItems="center" sx={{ px: { sm: 1 }, py: 1.5, mb: 0.5, overflow: "hidden" }}>
           <Avatar sx={{ width: 36, height: 36, fontSize: 15, bgcolor: "primary.main", color: "common.white", flexShrink: 0 }}>{email.charAt(0).toUpperCase()}</Avatar>
-          <Box sx={{ display: { xs: "none", sm: "block" }, minWidth: 0 }}><Typography variant="subtitle2" noWrap>Signed in</Typography><Typography variant="caption" color="text.secondary" noWrap>{email}</Typography></Box>
+          <Box sx={{ minWidth: 0 }}><Typography variant="subtitle2" noWrap>Signed in</Typography><Typography variant="caption" color="text.secondary" noWrap>{email}</Typography></Box>
         </Stack>}
+      </Box>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
+      {mobile ? <Drawer open={menuOpen} onClose={() => setMenuOpen(false)}>{sidebar}</Drawer> : sidebar}
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box component="header" sx={{
+          position: "sticky", top: { xs: 8, sm: 12 }, zIndex: theme => theme.zIndex.appBar,
+          display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1,
+          mt: { xs: 1, sm: 1.5 }, mx: { xs: 1.5, sm: 3, md: 4 },
+          px: { xs: 1, sm: 2 }, py: 0.75,
+          bgcolor: "background.paper", border: 1, borderColor: "divider", borderRadius: 2,
+          boxShadow: "0 4px 16px rgba(15, 23, 42, 0.10)",
+        }}>
+          <IconButton aria-label="Open navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}
+            sx={{ display: { xs: "inline-flex", sm: "none" } }}><MenuOutlined /></IconButton>
+          <Typography variant="overline" color="primary.main" sx={{ flex: 1 }}>
+            ClassManage
+          </Typography>
+          <ProfileLink email={email} />
+        </Box>
+        {children}
       </Box>
     </Box>
   );

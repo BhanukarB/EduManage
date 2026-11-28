@@ -490,7 +490,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                 </ListItem>
               ))}</List> : <Typography color="text.secondary" sx={{ py: 3 }}>No sections are linked to this class yet.</Typography> : batches.length ? (
                 <TableContainer sx={{ border: "1px solid", borderColor: "grey.300", borderRadius: 2, overflowX: "auto" }}>
-                  <Table aria-label="Batches" sx={{ minWidth: 620 }}>
+                  <Table className="mobile-records" aria-label="Batches" sx={{ minWidth: 620 }}>
                     <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700, borderBottom: "1px solid", borderColor: "grey.300" } }}>
                       <TableRow>
                         <TableCell scope="col">Batch name</TableCell>
@@ -533,7 +533,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                                 "—"
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell data-label="Batch code">
                               {batchName ? (
                                 batch.batchCode
                               ) : (
@@ -548,10 +548,10 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                                 </MuiLink>
                               )}
                             </TableCell>
-                            <TableCell>{start}</TableCell>
-                            <TableCell>{end}</TableCell>
-                            <TableCell>{batch.capacity}</TableCell>
-                            <TableCell align="right" onClick={(event) => event.stopPropagation()}>
+                            <TableCell data-label="Start date">{start}</TableCell>
+                            <TableCell data-label="End date">{end}</TableCell>
+                            <TableCell data-label="Capacity">{batch.capacity}</TableCell>
+                            <TableCell data-label="Actions" align="right" onClick={(event) => event.stopPropagation()}>
                               <Button size="small" disabled={!isSelectedSessionActive} onClick={() => openBatchDialog(batch)}>
                                 Edit
                               </Button>
@@ -597,7 +597,7 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
               ) : (
                 <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
                   <TableContainer>
-                    <Table aria-label="Class students" sx={{ minWidth: 680 }}>
+                    <Table className="mobile-records" aria-label="Class students" sx={{ minWidth: 680 }}>
                       <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
                         <TableRow>
                           <TableCell scope="col">Student name</TableCell>
@@ -616,15 +616,15 @@ export function BranchClassDetailsPage({ orgId, branchId, classId }: { orgId: st
                             sx={{ "& > td": { py: 1.5, borderBottom: "1px solid", borderColor: "grey.300" } }}
                           >
                             <TableCell sx={{ fontWeight: 600 }}>{studentFullName(student)}</TableCell>
-                            <TableCell>{student.enrollmentNumber}</TableCell>
-                            <TableCell>{student.emailId || "—"}</TableCell>
-                            <TableCell>{student.phoneNumber || "—"}</TableCell>
-                            <TableCell>
+                            <TableCell data-label="Enrollment number">{student.enrollmentNumber}</TableCell>
+                            <TableCell data-label="Email">{student.emailId || "—"}</TableCell>
+                            <TableCell data-label="Phone number">{student.phoneNumber || "—"}</TableCell>
+                            <TableCell data-label={isSchool ? "Section" : "Batch"}>
                               {isSchool
                                 ? (student.sectionCode ? `Section ${student.sectionCode}` : "—")
                                 : (student.batchName || "—")}
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell data-label="Actions" align="right">
                               <Button
                                 size="small"
                                 disabled={!activeOrgSession}

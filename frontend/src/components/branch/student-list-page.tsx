@@ -297,7 +297,7 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
         Student enrollment requires an active academic session.
       </Alert>
     )}
-    {readOnly && <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+    {readOnly && <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2 }}>
       {list?.subjectId && <TextField select label="Subject" size="small" value={list.subjectId}
         disabled={marking} onChange={event => changeAttendanceFilter("subjectId", event.target.value)}>
         {list.subjects.map(subject => <MenuItem key={subject.subjectId} value={subject.subjectId}>{subject.subjectName}</MenuItem>)}
@@ -314,7 +314,7 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
           Present: {list.presentCount} of {list.total} students
         </Typography>}
         <TableContainer>
-          <Table aria-label="Student list" sx={{ minWidth: 620 }}>
+          <Table className="mobile-records" aria-label="Student list" sx={{ minWidth: 620 }}>
             <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
               <TableRow>{["Student name", "Enrollment number", "Email", "Phone number"].map(label =>
                 <TableCell key={label}>{label}</TableCell>)}{readOnly && <TableCell>Attendance</TableCell>}</TableRow>
@@ -325,10 +325,10 @@ export function StudentListPage({ orgId, branchId, classId, groupId, groupType, 
                 sx={{ cursor: "pointer", "& > td": { py: 1.5, borderBottom: "1px solid", borderColor: "grey.300" } }}>
                 <TableCell><Button variant="text" sx={{ textTransform: "none", fontWeight: 600, px: 0 }}
                   onClick={() => setSelected(student)}>{name(student)}</Button></TableCell>
-                <TableCell>{student.enrollmentNumber}</TableCell>
-                <TableCell>{student.emailId || "—"}</TableCell>
-                <TableCell>{student.phoneNumber || "—"}</TableCell>
-                {readOnly && <TableCell onClick={event => event.stopPropagation()}>
+                <TableCell data-label="Enrollment number">{student.enrollmentNumber}</TableCell>
+                <TableCell data-label="Email">{student.emailId || "—"}</TableCell>
+                <TableCell data-label="Phone number">{student.phoneNumber || "—"}</TableCell>
+                {readOnly && <TableCell data-label="Attendance" onClick={event => event.stopPropagation()}>
                   <Checkbox checked={student.present === true} disabled={marking || !list.subjectId}
                     slotProps={{ input: { "aria-label": `Present: ${name(student)}` } }}
                     onChange={(_, checked) => void markAttendance(student.id, checked)} />

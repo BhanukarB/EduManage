@@ -126,7 +126,7 @@ export function OrganisationAdminDashboard({ orgId, section }: { orgId: string; 
             </Stack>
           </Stack>}
           {section === "Branches" && <Paper variant="outlined" sx={{ borderRadius: "12px", p: { xs: 2, md: 3 } }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+              <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }} spacing={1} sx={{ mb: 1 }}>
                 <Box><Typography variant="h6" fontWeight={700}>Branches</Typography><Typography variant="body2" color="text.secondary">Manage branches in your organisation</Typography></Box>
                 <Button variant="contained" disabled={!branches} startIcon={<AddOutlined />} onClick={() => { setError(null); setBranchForm({ branchName: "", branchCode: "", type: organisation?.type ?? 1, emailId: "", phoneNumber: "" }); setBranchDialogOpen(true); }}>Add branch</Button>
               </Stack>

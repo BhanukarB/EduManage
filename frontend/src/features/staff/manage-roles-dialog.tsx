@@ -51,8 +51,10 @@ export function ManageRolesDialog({ open, orgId, person, branches, onClose }: {
       <Typography variant="subtitle1" fontWeight={700}>Branch assignments</Typography>
       <List disablePadding>{assignments.filter(item => item.branchId).map(item => {
         const branch = branches.find(value => value.id === item.branchId);
-        return <ListItem key={`${item.id}-${item.branchId}`} disableGutters secondaryAction={<Button color="error" onClick={() => void edit(item.id, item.branchId!, "DELETE")}>Remove {roleLabel(item.name)} from {branch?.branchName}</Button>}>
+        return <ListItem key={`${item.id}-${item.branchId}`} disableGutters sx={{ gap: 1, flexWrap: "wrap" }}>
           <ListItemText primary={branch?.branchName ?? "Unknown branch"} secondary={roleLabel(item.name)} />
+          <Button color="error" aria-label={`Remove ${roleLabel(item.name)} from ${branch?.branchName ?? "branch"}`}
+            onClick={() => void edit(item.id, item.branchId!, "DELETE")}>Remove</Button>
         </ListItem>;
       })}</List>
       <Typography variant="subtitle1" fontWeight={700}>Add branch role</Typography>

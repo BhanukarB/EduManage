@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
+import ChevronLeft from "@mui/icons-material/ChevronLeft";
+import ChevronRight from "@mui/icons-material/ChevronRight";
 import { extractErrorMessage, readApi } from "@/lib/api";
 
 interface CalendarProps {
@@ -40,10 +42,10 @@ export function AttendanceCalendar({ path, subjectId, subjectName }: CalendarPro
   return <Box component="section" aria-label="Attendance calendar" sx={{ mb: 2 }}>
     <Typography variant="h6">Attendance{subjectName && ` · ${subjectName}`}</Typography>
     <Stack direction="row" alignItems="center" justifyContent="space-between" my={1}>
-      <Button onClick={() => setMonth(new Date(year, index - 1, 1))}>Previous month</Button>
+      <Button aria-label="Previous month" onClick={() => setMonth(new Date(year, index - 1, 1))}><ChevronLeft sx={{ display: { sm: "none" } }} /><Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>Previous month</Box></Button>
       <Typography aria-live="polite">{month.toLocaleString(undefined, { month: "long", year: "numeric" })}</Typography>
-      <Button disabled={last >= new Date() || endDate === new Date().toLocaleDateString("en-CA")}
-        onClick={() => setMonth(new Date(year, index + 1, 1))}>Next month</Button>
+      <Button aria-label="Next month" disabled={last >= new Date() || endDate === new Date().toLocaleDateString("en-CA")}
+        onClick={() => setMonth(new Date(year, index + 1, 1))}><ChevronRight sx={{ display: { sm: "none" } }} /><Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>Next month</Box></Button>
     </Stack>
     {current?.error ? <Alert severity="error">{current.error}</Alert> : !current?.presentDates ?
       <CircularProgress aria-label="Loading attendance" /> : <>

@@ -69,7 +69,7 @@ export function TeachingDashboard({ orgId, branchId, branchName }: { orgId: stri
             <PanelLoading padding={6} />
           ) : classes && classes.length > 0 ? (
             <TableContainer>
-              <Table aria-label="Assigned classes">
+              <Table className="mobile-records" aria-label="Assigned classes">
                 <TableHead>
                   <TableRow>
                     <TableCell>Class</TableCell>
@@ -96,7 +96,7 @@ export function TeachingDashboard({ orgId, branchId, branchName }: { orgId: stri
                           <Typography variant="body2" fontWeight={600}>{row.className}</Typography>
                           <Typography variant="caption" color="text.secondary">{row.classCode}</Typography>
                         </TableCell>
-                        <TableCell>
+                        <TableCell data-label="Section / Batch">
                           <Chip
                             component={Link}
                             href={href}
@@ -107,12 +107,14 @@ export function TeachingDashboard({ orgId, branchId, branchName }: { orgId: stri
                             onClick={(event) => event.stopPropagation()}
                           />
                         </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={500}>{row.subjectName}</Typography>
-                          <Typography variant="caption" color="text.secondary">{row.subjectCode}</Typography>
+                        <TableCell data-label="Subject">
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>{row.subjectName}</Typography>
+                            <Typography variant="caption" color="text.secondary">{row.subjectCode}</Typography>
+                          </Box>
                         </TableCell>
-                        <TableCell>{formatSchedule(row.startTime, row.endTime)}</TableCell>
-                        <TableCell>{row.sessionName}</TableCell>
+                        <TableCell data-label="Schedule">{formatSchedule(row.startTime, row.endTime)}</TableCell>
+                        <TableCell data-label="Session">{row.sessionName}</TableCell>
                       </TableRow>
                     );
                   })}

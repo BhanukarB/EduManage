@@ -49,10 +49,19 @@ const theme = createTheme({
       defaultProps: { variant: "outlined", size: "medium" },
       styleOverrides: { root: { "& .MuiOutlinedInput-root": { borderRadius: 8 } } },
     },
-    MuiDialog: { styleOverrides: { paper: { borderRadius: 16 } } },
+    MuiDialog: { styleOverrides: { paper: ({ theme }) => ({ borderRadius: 16, [theme.breakpoints.down("sm")]: { margin: 12, maxHeight: "calc(100dvh - 24px)", "&.MuiDialog-paperFullWidth": { width: "calc(100% - 24px)" } } }) } },
     MuiDialogTitle: { styleOverrides: { root: { paddingBottom: 8 } } },
     MuiDialogContent: { styleOverrides: { dividers: { paddingTop: 24, paddingBottom: 24 } } },
-    MuiDialogActions: { styleOverrides: { root: { padding: "16px 24px", gap: 8 } } },
+    MuiDialogActions: { styleOverrides: { root: { padding: "16px 24px", gap: 8, flexWrap: "wrap" } } },
+    MuiTablePagination: {
+      styleOverrides: { toolbar: ({ theme }) => ({
+        [theme.breakpoints.down("sm")]: {
+          flexWrap: "wrap", justifyContent: "flex-end", paddingInline: 8,
+          "& .MuiTablePagination-spacer": { display: "none" },
+          "& .MuiTablePagination-actions, & .MuiTablePagination-input": { marginInline: 4 },
+        },
+      }) },
+    },
     MuiTab: {
       styleOverrides: { root: { textTransform: "none", fontWeight: 600, fontSize: "0.875rem", minHeight: 44 } },
     },

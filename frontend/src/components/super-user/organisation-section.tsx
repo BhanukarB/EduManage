@@ -26,8 +26,8 @@ export function OrganisationSection({ organisations, loading, error, notice, onC
     {notice && <Alert severity="success" sx={{ mt: 2 }} onClose={onDismissNotice}>{notice}</Alert>}
     {loading ? <PanelLoading padding={6} /> : organisations.length ? (
       <List disablePadding sx={{ mt: 2, display: "grid", gap: 1.5 }}>{organisations.map((organisation) => <Paper key={organisation.id} variant="outlined" sx={{ overflow: "hidden" }}>
-        <ListItemButton onClick={() => onOpen(organisation)} sx={{ px: 2.5, py: 2, display: "flex", justifyContent: "space-between", gap: 2, alignItems: "flex-start" }}>
-          <Box sx={{ minWidth: 0 }}>
+        <ListItemButton onClick={() => onOpen(organisation)} sx={{ px: 2.5, py: 2, display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", gap: 2, alignItems: "flex-start" }}>
+          <Box sx={{ minWidth: 0, maxWidth: "100%", "& .MuiChip-label": { whiteSpace: { xs: "normal", sm: "nowrap" }, overflowWrap: "anywhere" }, "& .MuiChip-root": { height: { xs: "auto", sm: 24 } } }}>
             <Typography variant="subtitle1">{organisation.name}</Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
               <Chip size="small" variant="outlined" label={`Email: ${organisation.emailId}`} />

@@ -15,7 +15,7 @@ export function PageHeader({ title, subtitle, action, compactSpacing = false }: 
       justifyContent="space-between"
       alignItems={{ xs: "stretch", sm: "center" }}
       spacing={2}
-      sx={{ mb: compactSpacing ? 0 : 4 }}
+      sx={{ mb: compactSpacing ? 0 : 4, "& > .MuiChip-root": { alignSelf: { xs: "flex-start", sm: "center" } } }}
     >
       <Box>
         <Typography variant="h4" component="h1">{title}</Typography>

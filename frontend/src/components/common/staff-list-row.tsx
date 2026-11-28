@@ -16,9 +16,9 @@ interface StaffListRowProps {
 export function StaffListRow({ person, branches, disabled = false, onDesignationChange, onBranchChange, onStatusChange, onManageRoles, branchScoped = false }: StaffListRowProps) {
   return <ListItem disableGutters sx={{ display: "block", py: 1, mb: 1 }}>
     <Stack spacing={2} sx={{ p: { xs: 1.5, sm: 2 }, border: "1px solid", borderColor: "divider", borderRadius: "12px", bgcolor: "background.paper" }}>
-      <Stack direction="row" spacing={1.5} alignItems="center">
+      <Stack direction="row" spacing={1.5} useFlexGap flexWrap="wrap" alignItems="center">
         <Avatar sx={{ bgcolor: "primary.light", color: "primary.dark", width: 40, height: 40 }}>{person.firstName.charAt(0).toUpperCase()}</Avatar>
-        <ListItemText sx={{ flex: 1, minWidth: 0 }} primary={`${person.firstName} ${person.lastName}`} secondary={[person.emailId, person.phoneNumber].filter(Boolean).join(" · ")} />
+        <ListItemText sx={{ flex: "1 1 12rem", minWidth: 0, overflowWrap: "anywhere" }} primary={`${person.firstName} ${person.lastName}`} secondary={[person.emailId, person.phoneNumber].filter(Boolean).join(" · ")} />
         <FormControlLabel sx={{ mr: 0, flexShrink: 0 }} control={<Switch checked={person.status === 1} disabled={disabled} onChange={(_, checked) => onStatusChange(person, checked ? 1 : 0)} />} label={statusLabel(person.status)} />
       </Stack>
       {!branchScoped && <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

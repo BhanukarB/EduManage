@@ -322,8 +322,8 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
         </Button>
       </Box>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
-        <Table aria-label="Section subjects" sx={{ minWidth: 760 }}>
+      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, overflowX: "auto" }}>
+        <Table className="mobile-records" aria-label="Section subjects" sx={{ minWidth: 760 }}>
           <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700 } }}>
             <TableRow>
               <TableCell>Subject</TableCell>
@@ -347,8 +347,8 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
               return (
                 <TableRow key={row.id} sx={{ "& > td": { py: 1.5, borderBottom: "1px solid", borderColor: "grey.300" } }}>
                   <TableCell>{row.subjectName}</TableCell>
-                  <TableCell>{row.subjectCode}</TableCell>
-                  <TableCell sx={{ minWidth: 220 }}>
+                  <TableCell data-label="Code">{row.subjectCode}</TableCell>
+                  <TableCell data-label="Teacher" sx={{ minWidth: 220 }}>
                     <TextField
                       select
                       size="small"
@@ -371,7 +371,7 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
                       ))}
                     </TextField>
                   </TableCell>
-                  <TableCell sx={{ minWidth: 155 }}>
+                  <TableCell data-label="Start time" sx={{ minWidth: 155 }}>
                     <MobileTimePicker
                       value={draft.startTime ? dayjs(`2000-01-01T${draft.startTime}`) : null}
                       disabled={updatingId === row.id}
@@ -393,7 +393,7 @@ export function SectionSubjects({ orgId, branchId, section }: SectionSubjectsPro
                       }}
                     />
                   </TableCell>
-                  <TableCell sx={{ minWidth: 155 }}>
+                  <TableCell data-label="End time" sx={{ minWidth: 155 }}>
                     <MobileTimePicker
                       value={draft.endTime ? dayjs(`2000-01-01T${draft.endTime}`) : null}
                       disabled={updatingId === row.id}

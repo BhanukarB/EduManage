@@ -143,7 +143,7 @@ export function AcademicSessionsPage({ orgId }: { orgId: string }): ReactElement
           <PanelLoading padding={8} />
         ) : sessions?.length ? (
           <TableContainer sx={{ border: "1px solid", borderColor: "grey.300", borderRadius: 2, overflowX: "auto" }}>
-            <Table aria-label="Academic sessions" sx={{ minWidth: 620 }}>
+            <Table className="mobile-records" aria-label="Academic sessions" sx={{ minWidth: 620 }}>
               <TableHead sx={{ bgcolor: "action.hover", "& th": { fontWeight: 700, borderBottom: "1px solid", borderColor: "grey.300" } }}>
                 <TableRow>
                   <TableCell scope="col">Session name</TableCell>
@@ -165,10 +165,10 @@ export function AcademicSessionsPage({ orgId }: { orgId: string }): ReactElement
                     <TableCell sx={{ fontWeight: 600 }}>
                       {session.sessionName?.trim() || `${toDateInput(session.startDate)} – ${toDateInput(session.endDate)}`}
                     </TableCell>
-                    <TableCell>{toDateInput(session.startDate)}</TableCell>
-                    <TableCell>{toDateInput(session.endDate)}</TableCell>
-                    <TableCell><StatusChip status={session.status} /></TableCell>
-                    <TableCell align="right">
+                    <TableCell data-label="Start date">{toDateInput(session.startDate)}</TableCell>
+                    <TableCell data-label="End date">{toDateInput(session.endDate)}</TableCell>
+                    <TableCell data-label="Status"><StatusChip status={session.status} /></TableCell>
+                    <TableCell data-label="Actions" align="right">
                       <Button size="small" onClick={() => openEdit(session)}>Edit</Button>
                     </TableCell>
                   </TableRow>
